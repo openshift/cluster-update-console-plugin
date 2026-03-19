@@ -1,10 +1,22 @@
+# See the OWNERS docs: https://git.k8s.io/community/contributors/guide/owners.md
+
 approvers:
-  - christianvogt
-  - florkbr
-  - jhadvig
-  - logonoff
-  - rhamilto
-  - spadgett
-  - TheRealJon
-  - vojtechszocs
-component: Management Console
+  - wking
+  - DavidHurta
+  - PratikMahajan
+  - hongkailiu
+  - fao89
+reviewers:
+  - wking
+  - DavidHurta
+  - hongkailiu
+  - fao89
+emeritus_approvers:
+  - petr-muller
+  - smarterclayton
+  - abhinavdahiya
+  - LalatenduMohanty
+
+# This is a Red Hat extension, mapping the Git repository to an OpenShift Bugzilla component:
+# https://bugzilla.redhat.com/enter_bug.cgi?product=OpenShift%20Container%20Platform
+component: "Cluster Version Operator"
