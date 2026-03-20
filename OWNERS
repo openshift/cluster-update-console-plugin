@@ -1,0 +1,17 @@
+# See the OWNERS docs: https://git.k8s.io/community/contributors/guide/owners.md
+
+approvers:
+  - wking
+  - DavidHurta
+  - PratikMahajan
+  - hongkailiu
+  - fao89
+reviewers:
+  - wking
+  - DavidHurta
+  - hongkailiu
+  - fao89
+
+# This is a Red Hat extension, mapping the Jira component used for reporting OCPBUGS bugs.
+# https://redhat.atlassian.net/browse/OCPBUGS
+component: "Cluster Version Operator"
