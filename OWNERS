@@ -14,4 +14,4 @@ reviewers:
 
 # This is a Red Hat extension, mapping the Jira component used for reporting OCPBUGS bugs.
 # https://redhat.atlassian.net/browse/OCPBUGS
-component: "Cluster Version Operator"
+component: "Cluster Update Console Plugin"
