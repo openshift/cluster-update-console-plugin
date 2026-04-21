@@ -1,0 +1,282 @@
+/* ActivePlanView layout */
+.cluster-update-plugin__active-plan {
+  padding-block-start: var(--pf-t--global--spacer--md);
+}
+
+.cluster-update-plugin__plan-main {
+  display: flex;
+  gap: var(--pf-t--global--spacer--lg);
+  margin-block-start: var(--pf-t--global--spacer--lg);
+}
+
+.cluster-update-plugin__plan-content {
+  flex: 3;
+  min-width: 0;
+}
+
+.cluster-update-plugin__plan-sidebar {
+  flex: 1;
+  min-width: 240px;
+}
+
+/* PlanHeader */
+.cluster-update-plugin__plan-header {
+  margin-block-end: var(--pf-t--global--spacer--lg);
+}
+
+.cluster-update-plugin__plan-header-meta {
+  color: var(--pf-t--global--text--color--subtle);
+  font-size: var(--pf-t--global--font--size--sm);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-block-end: var(--pf-t--global--spacer--xs);
+}
+
+.cluster-update-plugin__plan-header-versions {
+  font-size: var(--pf-t--global--font--size--lg);
+  font-weight: var(--pf-t--global--font--weight--bold);
+}
+
+.cluster-update-plugin__plan-header-arrow {
+  color: var(--pf-t--global--text--color--subtle);
+  margin-inline: var(--pf-t--global--spacer--sm);
+}
+
+.cluster-update-plugin__plan-header-badge {
+  margin-inline-start: var(--pf-t--global--spacer--md);
+}
+
+/* PlanStepChecklist */
+.cluster-update-plugin__checklist-divider {
+  margin-block: var(--pf-t--global--spacer--md);
+}
+
+.cluster-update-plugin__checklist-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.cluster-update-plugin__checklist-row {
+  padding-block: var(--pf-t--global--spacer--sm);
+  border-block-end: 1px solid var(--pf-t--global--border--color--default);
+}
+
+.cluster-update-plugin__checklist-row:last-child {
+  border-block-end: none;
+}
+
+.cluster-update-plugin__checklist-row-header {
+  display: flex;
+  align-items: center;
+  gap: var(--pf-t--global--spacer--sm);
+}
+
+.cluster-update-plugin__checklist-row-icon {
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
+}
+
+.cluster-update-plugin__checklist-row-name {
+  flex: 1;
+}
+
+.cluster-update-plugin__checklist-row-detail {
+  margin-block-start: var(--pf-t--global--spacer--xs);
+  padding-inline-start: calc(20px + var(--pf-t--global--spacer--sm));
+  color: var(--pf-t--global--text--color--subtle);
+  font-size: var(--pf-t--global--font--size--sm);
+}
+
+/* PrerequisitesSidebar */
+.cluster-update-plugin__prerequisites-sidebar {
+  position: sticky;
+  top: var(--pf-t--global--spacer--md);
+  border-block-start: 3px solid var(--pf-t--global--color--status--warning--default);
+}
+
+.cluster-update-plugin__prerequisites-card-title {
+  display: flex;
+  align-items: center;
+  gap: var(--pf-t--global--spacer--sm);
+}
+
+.cluster-update-plugin__prerequisites-heading {
+  text-transform: uppercase;
+  font-size: var(--pf-t--global--font--size--sm);
+  font-weight: var(--pf-t--global--font--weight--bold);
+  letter-spacing: 0.05em;
+}
+
+.cluster-update-plugin__prerequisites-ready {
+  display: flex;
+  align-items: center;
+  gap: var(--pf-t--global--spacer--sm);
+}
+
+.cluster-update-plugin__prerequisites-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pf-t--global--spacer--sm);
+}
+
+.cluster-update-plugin__prerequisites-item {
+  margin-block-end: 0;
+}
+
+/* CompatibilityTable / Findings */
+.cluster-update-plugin__findings-row--blocker {
+  border-inline-start: 3px solid var(--pf-t--global--color--status--danger--default);
+}
+
+.cluster-update-plugin__findings-row--warning {
+  border-inline-start: 3px solid var(--pf-t--global--color--status--warning--default);
+}
+
+.cluster-update-plugin__findings-row--info {
+  border-inline-start: 3px solid var(--pf-t--global--color--status--info--default);
+}
+
+.cluster-update-plugin__findings-affected {
+  display: block;
+  margin-block-start: var(--pf-t--global--spacer--xs);
+  color: var(--pf-t--global--text--color--subtle);
+  font-size: var(--pf-t--global--font--size--xs);
+}
+
+.cluster-update-plugin__findings-command {
+  margin-block-start: var(--pf-t--global--spacer--xs);
+}
+
+/* APIDeprecations */
+.cluster-update-plugin__api-deprecations-clean {
+  display: flex;
+  align-items: center;
+  gap: var(--pf-t--global--spacer--sm);
+}
+
+.cluster-update-plugin__deprecation-item {
+  padding-block: var(--pf-t--global--spacer--xs);
+  border-block-end: 1px solid var(--pf-t--global--border--color--default);
+}
+
+/* RiskAssessment */
+.cluster-update-plugin__risk-assessment {
+  margin-block-end: 0;
+}
+
+.cluster-update-plugin__risk-alert {
+  margin-block-end: var(--pf-t--global--spacer--md);
+}
+
+.cluster-update-plugin__risk-description {
+  margin-block-end: var(--pf-t--global--spacer--md);
+  color: var(--pf-t--global--text--color--subtle);
+}
+
+.cluster-update-plugin__risk-details-list {
+  margin-block-start: var(--pf-t--global--spacer--sm);
+}
+
+/* MaintenanceWindow */
+.cluster-update-plugin__maintenance-empty {
+  color: var(--pf-t--global--text--color--subtle);
+}
+
+/* DecisionActions */
+.cluster-update-plugin__decision-card {
+  border-block-start: 3px solid var(--pf-t--global--color--status--info--default);
+}
+
+.cluster-update-plugin__decision-title-text {
+  margin-inline-end: var(--pf-t--global--spacer--sm);
+}
+
+.cluster-update-plugin__decision-badge {
+  vertical-align: middle;
+}
+
+.cluster-update-plugin__decision-description {
+  margin-block-end: var(--pf-t--global--spacer--md);
+  color: var(--pf-t--global--text--color--subtle);
+}
+
+.cluster-update-plugin__decision-action-group {
+  margin-block-start: var(--pf-t--global--spacer--sm);
+  gap: var(--pf-t--global--spacer--lg);
+}
+
+.cluster-update-plugin__decision-alert {
+  margin-block-start: var(--pf-t--global--spacer--md);
+}
+
+/* Contextual navigation links */
+.cluster-update-plugin__check-link {
+  color: var(--pf-t--global--text--color--link--default);
+  text-decoration: none;
+}
+
+.cluster-update-plugin__check-link:hover {
+  text-decoration: underline;
+}
+
+.cluster-update-plugin__prereq-link {
+  display: inline-block;
+  margin-block-start: var(--pf-t--global--spacer--xs);
+  font-size: var(--pf-t--global--font--size--sm);
+}
+
+/* OLMOperators */
+.cluster-update-plugin__olm-summary {
+  margin-block-end: var(--pf-t--global--spacer--md);
+}
+
+.cluster-update-plugin__olm-row--incompatible {
+  border-inline-start: 3px solid var(--pf-t--global--color--status--danger--default);
+}
+
+.cluster-update-plugin__olm-pending-badge {
+  margin-inline-start: var(--pf-t--global--spacer--sm);
+}
+
+.cluster-update-plugin__olm-findings {
+  margin-block-start: var(--pf-t--global--spacer--md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--pf-t--global--spacer--sm);
+}
+
+.cluster-update-plugin__olm-eol-date {
+  display: block;
+  margin-block-start: var(--pf-t--global--spacer--xs);
+  color: var(--pf-t--global--text--color--subtle);
+  font-size: var(--pf-t--global--font--size--xs);
+}
+
+.cluster-update-plugin__olm-finding-item {
+  display: flex;
+  align-items: center;
+  gap: var(--pf-t--global--spacer--sm);
+}
+
+/* ClusterMetrics */
+.cluster-update-plugin__metric-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--pf-t--global--spacer--sm);
+}
+
+.cluster-update-plugin__metric-value {
+  font-size: var(--pf-t--global--font--size--2xl);
+  font-weight: var(--pf-t--global--font--weight--bold);
+  line-height: 1;
+}
+
+.cluster-update-plugin__metric-label {
+  color: var(--pf-t--global--text--color--subtle);
+  font-size: var(--pf-t--global--font--size--sm);
+}
+
+.cluster-update-plugin__metrics-link {
+  font-size: var(--pf-t--global--font--size--sm);
+}

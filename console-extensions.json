@@ -3,18 +3,18 @@
     "type": "console.page/route",
     "properties": {
       "exact": true,
-      "path": "/example",
-      "component": { "$codeRef": "ExamplePage" }
+      "path": "/administration/cluster-update",
+      "component": { "$codeRef": "ClusterUpdatePage" }
     }
   },
   {
     "type": "console.navigation/href",
     "properties": {
-      "id": "example",
-      "name": "%plugin__console-plugin-template~Plugin example%",
-      "href": "/example",
+      "id": "cluster-update",
+      "name": "%plugin__cluster-update-console-plugin~Cluster Update%",
+      "href": "/administration/cluster-update",
       "perspective": "admin",
-      "section": "home"
+      "section": "administration"
     }
   }
 ]

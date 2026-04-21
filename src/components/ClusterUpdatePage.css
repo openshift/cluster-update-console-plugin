@@ -1,0 +1,12 @@
+.cluster-update-plugin__header {
+  padding-block-end: var(--pf-t--global--spacer--md);
+}
+
+.cluster-update-plugin__description {
+  color: var(--pf-t--global--text--color--subtle);
+  max-width: 80ch;
+}
+
+.cluster-update-plugin__tabs {
+  padding-block-start: 0;
+}
