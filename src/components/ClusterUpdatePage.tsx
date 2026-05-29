@@ -15,8 +15,8 @@ import {
 } from '@patternfly/react-core';
 import { useClusterVersion } from '../hooks/useClusterVersion';
 import { useUpdateProposals } from '../hooks/useUpdateProposals';
-import { I18N_NAMESPACE, LABELS, isTerminalPhase } from '../utils/constants';
-import { LightspeedProposal } from '../models/proposal';
+import { I18N_NAMESPACE, LABELS, TERMINAL_PHASES } from '../utils/constants';
+import { LightspeedProposal, derivePhase } from '../models/proposal';
 import { ClusterVersion } from '../models/clusterversion';
 import UpdatePlanTab from './update-plan/UpdatePlanTab';
 import ActivePlansTab from './active-plans/ActivePlansTab';
@@ -40,10 +40,9 @@ export default function ClusterUpdatePage() {
   );
 
   const activePlans = React.useMemo(
-    () => proposals.filter((p: LightspeedProposal) => !isTerminalPhase(p.status?.phase)),
+    () => proposals.filter((p: LightspeedProposal) => !TERMINAL_PHASES.has(derivePhase(p))),
     [proposals],
   );
-  const activeProposal = activePlans[0];
 
   const pageTitle = t('Cluster Update');
   const loading = !cvLoaded;
@@ -92,8 +91,7 @@ export default function ClusterUpdatePage() {
                   {activeTab === 0 && (
                     <UpdatePlanTab
                       clusterVersion={clusterVersion as ClusterVersion}
-                      proposals={proposals as LightspeedProposal[]}
-                      activeProposal={activeProposal}
+                      proposals={proposals}
                     />
                   )}
                 </TabContentBody>

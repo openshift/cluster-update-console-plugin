@@ -14,6 +14,7 @@ export const ANNOTATIONS = {
   proposeUpdate: 'agentic.openshift.io/propose-update',
 } as const;
 
+// Analysed is NOT terminal — user still needs to approve/deny the upgrade.
 export const TERMINAL_PHASES = new Set(['Completed', 'Failed', 'Denied', 'Escalated']);
 
 export const isTerminalPhase = (phase?: string): boolean => !phase || TERMINAL_PHASES.has(phase);

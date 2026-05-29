@@ -4,6 +4,12 @@ import {
   K8sResourceCondition,
   getGroupVersionKindForModel,
 } from '@openshift-console/dynamic-plugin-sdk';
+import { ProposalSpec, ProposalStatus } from './generated/proposals';
+import { ProposalApprovalSpec, ProposalApprovalStatus } from './generated/proposalapprovals';
+import { ApprovalPolicySpec } from './generated/approvalpolicies';
+import { AnalysisResultSpec, AnalysisResultStatus } from './generated/analysisresults';
+
+// --- K8s Models ---
 
 export const LightspeedProposalModel: K8sModel = {
   apiGroup: 'agentic.openshift.io',
@@ -16,11 +22,72 @@ export const LightspeedProposalModel: K8sModel = {
   labelPlural: 'Proposals',
 };
 
+export const ProposalApprovalModel: K8sModel = {
+  apiGroup: 'agentic.openshift.io',
+  apiVersion: 'v1alpha1',
+  kind: 'ProposalApproval',
+  plural: 'proposalapprovals',
+  abbr: 'PA',
+  namespaced: true,
+  label: 'ProposalApproval',
+  labelPlural: 'ProposalApprovals',
+};
+
+export const AnalysisResultModel: K8sModel = {
+  apiGroup: 'agentic.openshift.io',
+  apiVersion: 'v1alpha1',
+  kind: 'AnalysisResult',
+  plural: 'analysisresults',
+  abbr: 'AR',
+  namespaced: true,
+  label: 'AnalysisResult',
+  labelPlural: 'AnalysisResults',
+};
+
+export const ApprovalPolicyModel: K8sModel = {
+  apiGroup: 'agentic.openshift.io',
+  apiVersion: 'v1alpha1',
+  kind: 'ApprovalPolicy',
+  plural: 'approvalpolicies',
+  abbr: 'AP',
+  namespaced: false,
+  label: 'ApprovalPolicy',
+  labelPlural: 'ApprovalPolicies',
+};
+
 export const LightspeedProposalGVK = getGroupVersionKindForModel(LightspeedProposalModel);
+export const ProposalApprovalGVK = getGroupVersionKindForModel(ProposalApprovalModel);
+export const AnalysisResultGVK = getGroupVersionKindForModel(AnalysisResultModel);
+export const ApprovalPolicyGVK = getGroupVersionKindForModel(ApprovalPolicyModel);
+
+// --- Resource Types (composed from generated CRD types + K8sResourceCommon) ---
+
+export type LightspeedProposal = K8sResourceCommon & {
+  spec: ProposalSpec;
+  status?: ProposalStatus;
+};
+
+export type LightspeedProposalApproval = K8sResourceCommon & {
+  spec?: ProposalApprovalSpec;
+  status?: ProposalApprovalStatus;
+};
+
+export type LightspeedAnalysisResult = K8sResourceCommon & {
+  spec: AnalysisResultSpec;
+  status?: AnalysisResultStatus;
+};
+
+export type LightspeedApprovalPolicy = K8sResourceCommon & {
+  spec: ApprovalPolicySpec;
+};
+
+// --- Phase derivation ---
+// The CRD has no status.phase field. Derive it from status.conditions.
 
 export type ProposalPhase =
   | 'Pending'
   | 'Analyzing'
+  | 'Analysed'
   | 'Proposed'
   | 'Approved'
   | 'Denied'
@@ -31,155 +98,53 @@ export type ProposalPhase =
   | 'Failed'
   | 'Escalated';
 
-export type StepPhase = 'Pending' | 'Running' | 'Completed' | 'Failed' | 'Skipped';
+export const ACTIVE_PROPOSAL_PHASES = new Set<ProposalPhase>([
+  'Analyzing', 'Analysed', 'Proposed', 'Completed', 'Escalated', 'Failed',
+]);
 
-export type SandboxInfo = {
-  claimName?: string;
-  namespace?: string;
-  startedAt?: string;
-  completedAt?: string;
+export const derivePhase = (proposal?: LightspeedProposal): ProposalPhase => {
+  const conditions = proposal?.status?.conditions ?? [];
+  const find = (type: string) =>
+    conditions.find((c: K8sResourceCondition) => c.type === type);
+
+  const escalated = find('Escalated');
+  if (escalated?.status === 'True') return 'Escalated';
+
+  const verified = find('Verified');
+  const executed = find('Executed');
+  const analyzed = find('Analyzed');
+
+  // Analysis-only proposals: execution and verification are Skipped
+  const executionSkipped = executed?.reason === 'Skipped';
+  const verificationSkipped = verified?.reason === 'Skipped';
+  if (analyzed?.status === 'True' && executionSkipped && verificationSkipped) {
+    return 'Analysed';
+  }
+
+  if (verified?.status === 'True') return 'Completed';
+  if (verified?.status === 'False') return 'Verifying';
+
+  if (executed?.status === 'True') return 'AwaitingSync';
+  if (executed?.status === 'False') return 'Executing';
+
+  const approved = find('Approved');
+  if (approved?.status === 'True') return 'Approved';
+  if (approved?.status === 'False') return 'Denied';
+
+  if (analyzed?.status === 'True') return 'Proposed';
+  if (analyzed?.status === 'False' && analyzed?.reason === 'Failed') return 'Failed';
+  if (analyzed?.status === 'False') return 'Analyzing';
+
+  // Check if analysis step has any results (in progress)
+  if (proposal?.status?.steps?.analysis?.results?.length) return 'Analyzing';
+
+  // If any condition is Unknown, the operator is still reconciling
+  if (conditions.some((c: K8sResourceCondition) => c.status === 'Unknown')) return 'Pending';
+
+  return 'Pending';
 };
 
-export type PreviousAttempt = {
-  attempt: number;
-  failedPhase?: string;
-  failureReason?: string;
-};
-
-export type AgentDiagnosis = {
-  summary: string;
-  confidence: string;
-  rootCause: string;
-};
-
-export type AgentAction = {
-  type: string;
-  description: string;
-};
-
-export type AgentProposal = {
-  description: string;
-  actions: AgentAction[];
-  risk: string;
-  reversible: boolean;
-  estimatedImpact?: string;
-};
-
-export type VerificationStep = {
-  name: string;
-  command: string;
-  expected: string;
-  type: string;
-};
-
-export type AgentRollbackPlan = {
-  description: string;
-  command: string;
-};
-
-export type AgentVerification = {
-  description: string;
-  steps: VerificationStep[];
-  rollbackPlan: AgentRollbackPlan | string;
-};
-
-export type PermissionRule = {
-  namespace?: string;
-  apiGroups: string[];
-  resources: string[];
-  resourceNames?: string[];
-  verbs: string[];
-  justification: string;
-};
-
-export type AgentRbac = {
-  namespaceScoped: PermissionRule[];
-  clusterScoped: PermissionRule[];
-};
-
-export type AdapterComponent = {
-  type: string;
-  [key: string]: unknown;
-};
-
-export type RemediationOption = {
-  title: string;
-  summary?: string;
-  diagnosis: AgentDiagnosis;
-  proposal: AgentProposal;
-  verification?: AgentVerification;
-  rbac?: AgentRbac;
-  components?: AdapterComponent[];
-};
-
-export type AnalysisStepStatus = {
-  phase?: StepPhase;
-  options?: RemediationOption[];
-  selectedOption?: number;
-  sandbox?: SandboxInfo;
-  conditions?: K8sResourceCondition[];
-  components?: AdapterComponent[];
-};
-
-export type ExecutionActionTaken = {
-  type: string;
-  description: string;
-  success: boolean;
-  output?: string;
-  error?: string;
-};
-
-export type ExecutionVerification = {
-  conditionImproved: boolean;
-  summary: string;
-};
-
-export type ExecutionStepStatus = {
-  phase?: StepPhase;
-  success?: boolean;
-  actionsTaken?: ExecutionActionTaken[];
-  verification?: ExecutionVerification;
-  sandbox?: SandboxInfo;
-  components?: AdapterComponent[];
-};
-
-export type VerificationCheck = {
-  name: string;
-  source: string;
-  value: string;
-  passed: boolean;
-};
-
-export type VerificationStepStatus = {
-  phase?: StepPhase;
-  success?: boolean;
-  checks?: VerificationCheck[];
-  summary?: string;
-  sandbox?: SandboxInfo;
-  components?: AdapterComponent[];
-};
-
-export type StepsStatus = {
-  analysis?: AnalysisStepStatus;
-  execution?: ExecutionStepStatus;
-  verification?: VerificationStepStatus;
-};
-
-export type LightspeedProposal = K8sResourceCommon & {
-  spec: {
-    request: string;
-    workflow: string;
-    targetNamespaces?: string[];
-    maxAttempts?: number;
-  };
-  status?: {
-    phase?: ProposalPhase;
-    attempt?: number;
-    steps?: StepsStatus;
-    conditions?: K8sResourceCondition[];
-    previousAttempts?: PreviousAttempt[];
-  };
-};
+// --- Phase display ---
 
 export type PhaseDisplay = {
   color: 'grey' | 'blue' | 'teal' | 'orange' | 'purple' | 'green' | 'red' | 'orangered';
@@ -192,6 +157,8 @@ export const getPhaseDisplay = (phase?: ProposalPhase | string): PhaseDisplay =>
       return { color: 'grey', label: 'Pending' };
     case 'Analyzing':
       return { color: 'blue', label: 'Analyzing' };
+    case 'Analysed':
+      return { color: 'teal', label: 'Analysed' };
     case 'Proposed':
       return { color: 'teal', label: 'Proposed' };
     case 'Approved':
@@ -229,22 +196,42 @@ export const getRiskColor = (risk?: string): 'green' | 'orange' | 'red' | 'grey'
   }
 };
 
-// Shared helper to extract the selected analysis option and its components.
-// Uses selectedOption when available, falling back to the first option.
-export type AnalysisData = {
-  analysis?: AnalysisStepStatus;
-  option?: RemediationOption;
-  components: AdapterComponent[];
+// --- Adapter components (from CVO outputSchema in AnalysisResult) ---
+
+export type AdapterComponent = {
+  type: string;
+  [key: string]: unknown;
 };
 
-export const getAnalysisData = (proposal: LightspeedProposal): AnalysisData => {
-  const analysis = proposal.status?.steps?.analysis;
-  const optionIndex = analysis?.selectedOption ?? 0;
-  const option = analysis?.options?.[optionIndex];
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type AnalysisDataPayload = Record<string, any>;
+
+export type AnalysisData = {
+  components: AdapterComponent[];
+  analysisData?: AnalysisDataPayload;
+};
+
+export const getAnalysisDataFromResult = (
+  result?: LightspeedAnalysisResult,
+): AnalysisData => {
+  if (!result?.status?.options?.length) {
+    return { components: [] };
+  }
+  const option = result.status.options[0];
+  const raw = (option.components as AnalysisDataPayload)?.analysisData;
+
+  // analysisData can be an array of typed components (PR 1379 format)
+  // or a flat object (legacy format)
+  if (Array.isArray(raw)) {
+    return {
+      components: raw as AdapterComponent[],
+    };
+  }
+
+  // Legacy flat object — wrap in components for backward compat
   return {
-    analysis,
-    option,
-    components: option?.components ?? analysis?.components ?? [],
+    components: [],
+    analysisData: raw as AnalysisDataPayload | undefined,
   };
 };
 
@@ -273,14 +260,11 @@ export const SEVERITY_LABELS: Record<string, string> = {
   info: 'Info',
 };
 
-// OTA adapter component types (from CVO outputSchema)
 export const COMPONENT_TYPES = {
   readinessSummary: 'ota_readiness_summary',
   finding: 'ota_finding',
   olmOperatorStatus: 'ota_olm_operator_status',
 } as const;
-
-// Typed shapes for the OTA adapter components
 
 export type ReadinessCheck = {
   name: string;
@@ -303,8 +287,6 @@ export type OtaFinding = AdapterComponent & {
   prerequisite?: string;
   verifyCommand?: string;
 };
-
-// Helpers to extract typed components from the generic AdapterComponent array
 
 export const getReadinessSummary = (
   components: AdapterComponent[],

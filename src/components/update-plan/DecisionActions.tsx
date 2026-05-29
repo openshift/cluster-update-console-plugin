@@ -13,12 +13,13 @@ import {
   Label,
 } from '@patternfly/react-core';
 import { CheckIcon } from '@patternfly/react-icons';
-import { LightspeedProposal } from '../../models/proposal';
+import { LightspeedProposal, LightspeedProposalApproval } from '../../models/proposal';
 import { ClusterVersion, ClusterVersionModel } from '../../models/clusterversion';
 import { I18N_NAMESPACE, LABELS } from '../../utils/constants';
 import { unsanitizeVersion } from '../../utils/version';
 import { getErrorMessage } from '../../utils/error';
 import { useApprovalActions } from '../../hooks/useApprovalActions';
+import { useProposalApprovals } from '../../hooks/useUpdateProposals';
 
 type DecisionActionsProps = {
   proposal: LightspeedProposal;
@@ -30,7 +31,21 @@ const CONFIRM_TIMEOUT_MS = 5000;
 const DecisionActions: React.FC<DecisionActionsProps> = ({ proposal, clusterVersion }) => {
   const { t } = useTranslation(I18N_NAMESPACE);
   const history = useHistory();
-  const { approve, deny, error, clearError, inProgress } = useApprovalActions(proposal);
+
+  // Find the ProposalApproval matching this proposal (same name/namespace)
+  const [approvals] = useProposalApprovals();
+  const approval = React.useMemo(
+    () =>
+      (approvals ?? []).find(
+        (a: LightspeedProposalApproval) =>
+          a.metadata?.name === proposal.metadata?.name &&
+          a.metadata?.namespace === proposal.metadata?.namespace,
+      ),
+    [approvals, proposal.metadata?.name, proposal.metadata?.namespace],
+  );
+
+  const { approveStage, denyStage, error, clearError, inProgress } =
+    useApprovalActions(approval);
 
   const [confirmingApprove, setConfirmingApprove] = React.useState(false);
   const [confirmingDeny, setConfirmingDeny] = React.useState(false);
@@ -51,7 +66,7 @@ const DecisionActions: React.FC<DecisionActionsProps> = ({ proposal, clusterVers
       setConfirmingApprove(false);
       setUpgradeError(null);
 
-      const approved = await approve();
+      const approved = await approveStage('Analysis');
       if (!approved) return;
 
       const rawTarget = proposal.metadata?.labels?.[LABELS.targetVersion] ?? '';
@@ -94,13 +109,15 @@ const DecisionActions: React.FC<DecisionActionsProps> = ({ proposal, clusterVers
         setConfirmingApprove(false);
       }, CONFIRM_TIMEOUT_MS);
     }
-  }, [confirmingApprove, approve, proposal, clusterVersion, history, t]);
+  }, [confirmingApprove, approveStage, proposal, clusterVersion, history, t]);
 
-  const handleDenyClick = React.useCallback(() => {
+  const handleDenyClick = React.useCallback(async () => {
     if (confirmingDeny) {
       if (denyTimerRef.current) clearTimeout(denyTimerRef.current);
       setConfirmingDeny(false);
-      deny();
+      setUpgradeError(null);
+      const denied = await denyStage('Analysis');
+      if (!denied) return;
     } else {
       setConfirmingDeny(true);
       setConfirmingApprove(false);
@@ -109,7 +126,7 @@ const DecisionActions: React.FC<DecisionActionsProps> = ({ proposal, clusterVers
         setConfirmingDeny(false);
       }, CONFIRM_TIMEOUT_MS);
     }
-  }, [confirmingDeny, deny]);
+  }, [confirmingDeny, denyStage]);
 
   const displayError = error || upgradeError;
 
@@ -132,7 +149,7 @@ const DecisionActions: React.FC<DecisionActionsProps> = ({ proposal, clusterVers
             variant="primary"
             icon={<CheckIcon />}
             onClick={handleApproveClick}
-            isDisabled={inProgress}
+            isDisabled={inProgress || !approval}
             isLoading={inProgress && confirmingApprove}
           >
             {confirmingApprove ? t('Confirm approve & upgrade') : t('Approve & upgrade')}
@@ -143,7 +160,7 @@ const DecisionActions: React.FC<DecisionActionsProps> = ({ proposal, clusterVers
           <Button
             variant="danger"
             onClick={handleDenyClick}
-            isDisabled={inProgress}
+            isDisabled={inProgress || !approval}
             isLoading={inProgress && confirmingDeny}
           >
             {confirmingDeny ? t('Confirm reject') : t('Reject plan')}

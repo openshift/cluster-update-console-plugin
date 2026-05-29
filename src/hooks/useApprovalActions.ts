@@ -1,73 +1,91 @@
 import * as React from 'react';
 import { k8sPatch } from '@openshift-console/dynamic-plugin-sdk';
-import { LightspeedProposal, LightspeedProposalModel } from '../models/proposal';
+import {
+  LightspeedProposalApproval,
+  ProposalApprovalModel,
+} from '../models/proposal';
 import { getErrorMessage } from '../utils/error';
 
-export const useApprovalActions = (proposal?: LightspeedProposal) => {
+export type ApprovalStageType = 'Analysis' | 'Execution' | 'Verification' | 'Escalation';
+
+export const useApprovalActions = (approval?: LightspeedProposalApproval) => {
   const [inProgress, setInProgress] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  const proposalRef = React.useRef(proposal);
-  proposalRef.current = proposal;
+  const approvalRef = React.useRef(approval);
+  approvalRef.current = approval;
 
-  const handleApproval = React.useCallback(
-    async (approved: boolean, maxAttempts?: number, optionIndex?: number) => {
-      const currentProposal = proposalRef.current;
-      if (!currentProposal) return;
+  const approveStage = React.useCallback(
+    async (stageType: ApprovalStageType, options?: { optionIndex?: number; maxAttempts?: number }) => {
+      const currentApproval = approvalRef.current;
+      if (!currentApproval) return false;
       setInProgress(true);
       setError(null);
       try {
-        const now = new Date().toISOString();
-        const conditionValue = {
-          lastTransitionTime: now,
-          message: approved
-            ? 'Update plan approved by user via console'
-            : 'Update plan denied by user via console',
-          reason: approved ? 'ApprovedViaConsole' : 'DeniedViaConsole',
-          status: approved ? 'True' : 'False',
-          type: 'Approved',
+        const existingStages = currentApproval.spec?.stages ?? [];
+        const stageEntry: Record<string, unknown> = {
+          type: stageType,
+          decision: 'Approved',
         };
-        const statusPatches: Array<{ op: string; path: string; value: unknown }> = [
-          { op: 'replace', path: '/status/phase', value: approved ? 'Approved' : 'Denied' },
-          currentProposal.status?.conditions?.length
-            ? { op: 'add', path: '/status/conditions/-', value: conditionValue }
-            : { op: 'add', path: '/status/conditions', value: [conditionValue] },
-        ];
-        if (approved && optionIndex !== undefined) {
-          statusPatches.push({
-            op:
-              currentProposal.status?.steps?.analysis?.selectedOption !== undefined
-                ? 'replace'
-                : 'add',
-            path: '/status/steps/analysis/selectedOption',
-            value: optionIndex,
-          });
+
+        if (stageType === 'Analysis') {
+          stageEntry.analysis = { agent: 'default' };
+        } else if (stageType === 'Execution') {
+          stageEntry.execution = {
+            agent: 'default',
+            ...(options?.optionIndex !== undefined && { option: options.optionIndex }),
+            ...(options?.maxAttempts !== undefined && { maxAttempts: options.maxAttempts }),
+          };
+        } else if (stageType === 'Verification') {
+          stageEntry.verification = { agent: 'default' };
+        } else if (stageType === 'Escalation') {
+          stageEntry.escalation = { agent: 'default' };
         }
 
-        // Run spec and status patches in parallel when both are needed
-        const statusPatch = k8sPatch({
-          data: statusPatches,
-          model: LightspeedProposalModel,
-          resource: currentProposal,
-          path: 'status',
+        const newStages = [...existingStages, stageEntry];
+        const hasSpec = currentApproval.spec?.stages !== undefined;
+
+        await k8sPatch({
+          data: [
+            hasSpec
+              ? { op: 'replace', path: '/spec/stages', value: newStages }
+              : { op: 'add', path: '/spec', value: { stages: newStages } },
+          ],
+          model: ProposalApprovalModel,
+          resource: currentApproval,
         });
+        return true;
+      } catch (err) {
+        setError(getErrorMessage(err));
+        return false;
+      } finally {
+        setInProgress(false);
+      }
+    },
+    [],
+  );
 
-        const specPatch =
-          approved && maxAttempts !== undefined && maxAttempts > 0
-            ? k8sPatch({
-                data: [
-                  {
-                    op: currentProposal.spec.maxAttempts === undefined ? 'add' : 'replace',
-                    path: '/spec/maxAttempts',
-                    value: maxAttempts,
-                  },
-                ],
-                model: LightspeedProposalModel,
-                resource: currentProposal,
-              })
-            : Promise.resolve();
+  const denyStage = React.useCallback(
+    async (stageType: ApprovalStageType) => {
+      const currentApproval = approvalRef.current;
+      if (!currentApproval) return false;
+      setInProgress(true);
+      setError(null);
+      try {
+        const existingStages = currentApproval.spec?.stages ?? [];
+        const stageEntry = { type: stageType, decision: 'Denied' };
+        const newStages = [...existingStages, stageEntry];
+        const hasSpec = currentApproval.spec?.stages !== undefined;
 
-        await Promise.all([statusPatch, specPatch]);
+        await k8sPatch({
+          data: [
+            hasSpec
+              ? { op: 'replace', path: '/spec/stages', value: newStages }
+              : { op: 'add', path: '/spec', value: { stages: newStages } },
+          ],
+          model: ProposalApprovalModel,
+          resource: currentApproval,
+        });
         return true;
       } catch (err) {
         setError(getErrorMessage(err));
@@ -80,12 +98,8 @@ export const useApprovalActions = (proposal?: LightspeedProposal) => {
   );
 
   return {
-    approve: React.useCallback(
-      (maxAttempts?: number, optionIndex?: number) =>
-        handleApproval(true, maxAttempts, optionIndex),
-      [handleApproval],
-    ),
-    deny: React.useCallback(() => handleApproval(false), [handleApproval]),
+    approveStage,
+    denyStage,
     clearError: React.useCallback(() => setError(null), []),
     error,
     inProgress,
