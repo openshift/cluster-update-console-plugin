@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { Stack, StackItem } from '@patternfly/react-core';
-import { LightspeedProposal, getAnalysisData } from '../../models/proposal';
+import { LightspeedProposal, AnalysisResult, getAnalysisData } from '../../models/proposal';
 import { ClusterVersion } from '../../models/clusterversion';
 import PlanHeader from './PlanHeader';
 import PlanStepChecklist from './PlanStepChecklist';
@@ -17,10 +17,18 @@ import './update-plan.css';
 type ActivePlanViewProps = {
   proposal: LightspeedProposal;
   clusterVersion: ClusterVersion;
+  analysisResults: AnalysisResult[];
 };
 
-const ActivePlanView: React.FC<ActivePlanViewProps> = ({ proposal, clusterVersion }) => {
-  const analysisData = React.useMemo(() => getAnalysisData(proposal), [proposal]);
+const ActivePlanView: React.FC<ActivePlanViewProps> = ({
+  proposal,
+  clusterVersion,
+  analysisResults,
+}) => {
+  const analysisData = React.useMemo(
+    () => getAnalysisData(proposal, analysisResults),
+    [proposal, analysisResults],
+  );
 
   return (
     <div className="cluster-update-plugin__active-plan">

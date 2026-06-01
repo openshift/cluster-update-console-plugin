@@ -5,7 +5,7 @@ import { Timestamp } from '@openshift-console/dynamic-plugin-sdk';
 import { EmptyState, EmptyStateBody } from '@patternfly/react-core';
 import { SearchIcon } from '@patternfly/react-icons';
 import { Table, Thead, Tbody, Tr, Th, Td } from '@patternfly/react-table';
-import { LightspeedProposal } from '../../models/proposal';
+import { LightspeedProposal, getProposalPhase } from '../../models/proposal';
 import { I18N_NAMESPACE, LABELS } from '../../utils/constants';
 import PhaseLabel from '../shared/PhaseLabel';
 import './active-plans.css';
@@ -54,7 +54,7 @@ const ActivePlansTab: React.FC<ActivePlansTabProps> = ({ activePlans }) => {
                 </Td>
                 <Td dataLabel={t('Target Version')}>{targetVersion}</Td>
                 <Td dataLabel={t('Phase')}>
-                  <PhaseLabel phase={proposal.status?.phase} />
+                  <PhaseLabel phase={getProposalPhase(proposal)} />
                 </Td>
                 <Td dataLabel={t('Update Type')}>{updateType}</Td>
                 <Td dataLabel={t('Age')}>

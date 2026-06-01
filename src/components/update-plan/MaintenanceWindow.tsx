@@ -11,11 +11,7 @@ import {
   DescriptionListGroup,
   DescriptionListTerm,
 } from '@patternfly/react-core';
-import {
-  AnalysisData,
-  AgentAction,
-  ACTION_TYPES,
-} from '../../models/proposal';
+import { AnalysisData, AgentAction, ACTION_TYPES } from '../../models/proposal';
 import { I18N_NAMESPACE } from '../../utils/constants';
 
 type MaintenanceWindowProps = {

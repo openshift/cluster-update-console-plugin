@@ -201,8 +201,7 @@ const OLMOperators: React.FC<OLMOperatorsProps> = ({ analysisData }) => {
                 <Icon status={finding.severity === 'blocker' ? 'danger' : 'warning'}>
                   <ExclamationTriangleIcon />
                 </Icon>{' '}
-                <SeverityLabel severity={finding.severity} />{' '}
-                {finding.detail}
+                <SeverityLabel severity={finding.severity} /> {finding.detail}
               </Content>
             ))}
           </div>

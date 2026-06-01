@@ -11,11 +11,7 @@ import {
 } from '@patternfly/react-core';
 import { CheckCircleIcon } from '@patternfly/react-icons';
 import { Table, Thead, Tr, Th, Tbody, Td } from '@patternfly/react-table';
-import {
-  AnalysisData,
-  getFindings,
-  sortFindings,
-} from '../../models/proposal';
+import { AnalysisData, getFindings, sortFindings } from '../../models/proposal';
 import SeverityLabel from '../shared/SeverityLabel';
 import { I18N_NAMESPACE } from '../../utils/constants';
 

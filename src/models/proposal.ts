@@ -18,6 +18,19 @@ export const LightspeedProposalModel: K8sModel = {
 
 export const LightspeedProposalGVK = getGroupVersionKindForModel(LightspeedProposalModel);
 
+export const AnalysisResultModel: K8sModel = {
+  apiGroup: 'agentic.openshift.io',
+  apiVersion: 'v1alpha1',
+  kind: 'AnalysisResult',
+  plural: 'analysisresults',
+  abbr: 'AR',
+  namespaced: true,
+  label: 'AnalysisResult',
+  labelPlural: 'AnalysisResults',
+};
+
+export const AnalysisResultGVK = getGroupVersionKindForModel(AnalysisResultModel);
+
 export type ProposalPhase =
   | 'Pending'
   | 'Analyzing'
@@ -31,19 +44,11 @@ export type ProposalPhase =
   | 'Failed'
   | 'Escalated';
 
-export type StepPhase = 'Pending' | 'Running' | 'Completed' | 'Failed' | 'Skipped';
-
 export type SandboxInfo = {
   claimName?: string;
   namespace?: string;
   startedAt?: string;
   completedAt?: string;
-};
-
-export type PreviousAttempt = {
-  attempt: number;
-  failedPhase?: string;
-  failureReason?: string;
 };
 
 export type AgentDiagnosis = {
@@ -57,12 +62,15 @@ export type AgentAction = {
   description: string;
 };
 
+export type Reversibility = 'Reversible' | 'Irreversible' | 'Partial';
+
 export type AgentProposal = {
   description: string;
   actions: AgentAction[];
   risk: string;
-  reversible: boolean;
+  reversible: Reversibility;
   estimatedImpact?: string;
+  rollbackPlan?: AgentRollbackPlan;
 };
 
 export type VerificationStep = {
@@ -74,13 +82,12 @@ export type VerificationStep = {
 
 export type AgentRollbackPlan = {
   description: string;
-  command: string;
+  command?: string;
 };
 
 export type AgentVerification = {
   description: string;
   steps: VerificationStep[];
-  rollbackPlan: AgentRollbackPlan | string;
 };
 
 export type PermissionRule = {
@@ -112,73 +119,77 @@ export type RemediationOption = {
   components?: AdapterComponent[];
 };
 
-export type AnalysisStepStatus = {
-  phase?: StepPhase;
-  options?: RemediationOption[];
-  selectedOption?: number;
-  sandbox?: SandboxInfo;
-  conditions?: K8sResourceCondition[];
-  components?: AdapterComponent[];
-};
-
-export type ExecutionActionTaken = {
-  type: string;
-  description: string;
-  success: boolean;
-  output?: string;
-  error?: string;
-};
-
-export type ExecutionVerification = {
-  conditionImproved: boolean;
-  summary: string;
-};
-
-export type ExecutionStepStatus = {
-  phase?: StepPhase;
-  success?: boolean;
-  actionsTaken?: ExecutionActionTaken[];
-  verification?: ExecutionVerification;
-  sandbox?: SandboxInfo;
-  components?: AdapterComponent[];
-};
-
-export type VerificationCheck = {
+export type AnalysisResultReference = {
   name: string;
-  source: string;
-  value: string;
-  passed: boolean;
+  outcome: string;
 };
 
-export type VerificationStepStatus = {
-  phase?: StepPhase;
-  success?: boolean;
-  checks?: VerificationCheck[];
-  summary?: string;
+export type StepStatus = {
+  conditions?: K8sResourceCondition[];
+  results?: AnalysisResultReference[];
   sandbox?: SandboxInfo;
-  components?: AdapterComponent[];
 };
 
 export type StepsStatus = {
-  analysis?: AnalysisStepStatus;
-  execution?: ExecutionStepStatus;
-  verification?: VerificationStepStatus;
+  analysis?: StepStatus;
+  execution?: StepStatus;
+  verification?: StepStatus;
+  escalation?: StepStatus;
 };
 
 export type LightspeedProposal = K8sResourceCommon & {
   spec: {
     request: string;
-    workflow: string;
-    targetNamespaces?: string[];
-    maxAttempts?: number;
+    analysis?: {
+      agent: string;
+    };
   };
   status?: {
-    phase?: ProposalPhase;
-    attempt?: number;
     steps?: StepsStatus;
     conditions?: K8sResourceCondition[];
-    previousAttempts?: PreviousAttempt[];
   };
+};
+
+export type AnalysisResult = K8sResourceCommon & {
+  spec: {
+    proposalName: string;
+  };
+  status?: {
+    conditions?: K8sResourceCondition[];
+    failureReason?: string;
+    options?: RemediationOption[];
+    sandbox?: SandboxInfo;
+  };
+};
+
+const findCondition = (
+  conditions: K8sResourceCondition[] | undefined,
+  type: string,
+): K8sResourceCondition | undefined => conditions?.find((c) => c.type === type);
+
+export const getProposalPhase = (proposal: LightspeedProposal): ProposalPhase => {
+  const conditions = proposal.status?.conditions;
+
+  const escalated = findCondition(conditions, 'Escalated');
+  if (escalated?.status === 'True') return 'Escalated';
+
+  const verified = findCondition(conditions, 'Verified');
+  if (verified?.status === 'True') return 'Completed';
+
+  const executed = findCondition(conditions, 'Executed');
+  if (executed?.status === 'True') return 'Verifying';
+  if (executed?.status === 'False') return 'Failed';
+
+  const approved = findCondition(conditions, 'Approved');
+  if (approved?.status === 'True') return 'Executing';
+  if (approved?.status === 'False') return 'Denied';
+
+  const analyzed = findCondition(conditions, 'Analyzed');
+  if (analyzed?.status === 'True') return 'Proposed';
+
+  if (proposal.status?.steps?.analysis?.results?.length) return 'Analyzing';
+
+  return 'Pending';
 };
 
 export type PhaseDisplay = {
@@ -216,7 +227,7 @@ export const getPhaseDisplay = (phase?: ProposalPhase | string): PhaseDisplay =>
 };
 
 export const getRiskColor = (risk?: string): 'green' | 'orange' | 'red' | 'grey' => {
-  switch (risk) {
+  switch (risk?.toLowerCase()) {
     case 'low':
       return 'green';
     case 'medium':
@@ -229,22 +240,30 @@ export const getRiskColor = (risk?: string): 'green' | 'orange' | 'red' | 'grey'
   }
 };
 
-// Shared helper to extract the selected analysis option and its components.
-// Uses selectedOption when available, falling back to the first option.
 export type AnalysisData = {
-  analysis?: AnalysisStepStatus;
   option?: RemediationOption;
   components: AdapterComponent[];
 };
 
-export const getAnalysisData = (proposal: LightspeedProposal): AnalysisData => {
-  const analysis = proposal.status?.steps?.analysis;
-  const optionIndex = analysis?.selectedOption ?? 0;
-  const option = analysis?.options?.[optionIndex];
+export const getAnalysisData = (
+  proposal: LightspeedProposal,
+  analysisResults: AnalysisResult[],
+): AnalysisData => {
+  const refs = proposal.status?.steps?.analysis?.results;
+  if (!refs?.length) {
+    return { option: undefined, components: [] };
+  }
+
+  const successfulRef = refs.find((r) => r.outcome === 'Succeeded');
+  if (!successfulRef) {
+    return { option: undefined, components: [] };
+  }
+
+  const result = analysisResults.find((ar) => ar.metadata?.name === successfulRef.name);
+  const option = result?.status?.options?.[0];
   return {
-    analysis,
     option,
-    components: option?.components ?? analysis?.components ?? [],
+    components: option?.components ?? [],
   };
 };
 
@@ -273,14 +292,11 @@ export const SEVERITY_LABELS: Record<string, string> = {
   info: 'Info',
 };
 
-// OTA adapter component types (from CVO outputSchema)
 export const COMPONENT_TYPES = {
   readinessSummary: 'ota_readiness_summary',
   finding: 'ota_finding',
   olmOperatorStatus: 'ota_olm_operator_status',
 } as const;
-
-// Typed shapes for the OTA adapter components
 
 export type ReadinessCheck = {
   name: string;
@@ -303,8 +319,6 @@ export type OtaFinding = AdapterComponent & {
   prerequisite?: string;
   verifyCommand?: string;
 };
-
-// Helpers to extract typed components from the generic AdapterComponent array
 
 export const getReadinessSummary = (
   components: AdapterComponent[],

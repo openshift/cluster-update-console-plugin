@@ -3,11 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { Alert, Badge, Card, CardBody, CardTitle, Content, Icon } from '@patternfly/react-core';
 import { CheckCircleIcon } from '@patternfly/react-icons';
-import {
-  AnalysisData,
-  getFindings,
-  ACTION_TYPES,
-} from '../../models/proposal';
+import { AnalysisData, getFindings, ACTION_TYPES } from '../../models/proposal';
 import { I18N_NAMESPACE } from '../../utils/constants';
 
 type PrerequisitesSidebarProps = {

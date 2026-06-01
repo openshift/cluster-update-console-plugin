@@ -24,10 +24,10 @@ type RiskAssessmentProps = {
 };
 
 const RISK_LABELS: Record<string, string> = {
-  low: 'LOW',
-  medium: 'MEDIUM',
-  high: 'HIGH',
-  critical: 'CRITICAL',
+  Low: 'LOW',
+  Medium: 'MEDIUM',
+  High: 'HIGH',
+  Critical: 'CRITICAL',
 };
 
 type DecisionAlertConfig = {
@@ -52,7 +52,7 @@ const RiskAssessment: React.FC<RiskAssessmentProps> = ({ analysisData }) => {
 
   const risk = option?.proposal?.risk;
   const riskColor = getRiskColor(risk);
-  const riskLabel = t(RISK_LABELS[risk?.toLowerCase() ?? ''] ?? 'Unknown');
+  const riskLabel = t(RISK_LABELS[risk ?? ''] ?? 'Unknown');
 
   const estimatedImpact = option?.proposal?.estimatedImpact;
   const description = option?.proposal?.description;
@@ -99,12 +99,10 @@ const RiskAssessment: React.FC<RiskAssessmentProps> = ({ analysisData }) => {
                   <DescriptionListDescription>{estimatedImpact}</DescriptionListDescription>
                 </DescriptionListGroup>
               )}
-              {reversible !== undefined && (
+              {reversible && (
                 <DescriptionListGroup>
                   <DescriptionListTerm>{t('Reversibility')}</DescriptionListTerm>
-                  <DescriptionListDescription>
-                    {reversible ? t('Reversible') : t('Not reversible')}
-                  </DescriptionListDescription>
+                  <DescriptionListDescription>{t(reversible)}</DescriptionListDescription>
                 </DescriptionListGroup>
               )}
             </DescriptionList>

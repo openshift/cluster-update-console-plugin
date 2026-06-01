@@ -21,7 +21,7 @@ import {
 } from '@patternfly/react-core';
 import { RobotIcon } from '@patternfly/react-icons';
 import { ClusterVersion, Release } from '../../models/clusterversion';
-import { LightspeedProposal } from '../../models/proposal';
+import { LightspeedProposal, getProposalPhase } from '../../models/proposal';
 import { I18N_NAMESPACE } from '../../utils/constants';
 import { compareSemVer } from '../../utils/version';
 import { useCreateProposal } from '../../hooks/useCreateProposal';
@@ -46,7 +46,7 @@ const AIUpdateAgentCard: React.FC<AIUpdateAgentCardProps> = ({ clusterVersion, p
   const { requestProposal, creating, error: createError } = useCreateProposal();
 
   const completedCount = React.useMemo(
-    () => proposals.filter((p) => p.status?.phase === 'Completed').length,
+    () => proposals.filter((p) => getProposalPhase(p) === 'Completed').length,
     [proposals],
   );
   const totalPlans = proposals.length;

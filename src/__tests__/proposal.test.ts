@@ -1,5 +1,6 @@
 import {
   getPhaseDisplay,
+  getProposalPhase,
   getRiskColor,
   getAnalysisData,
   getReadinessSummary,
@@ -8,6 +9,7 @@ import {
   sortFindings,
   COMPONENT_TYPES,
   LightspeedProposal,
+  AnalysisResult,
   AdapterComponent,
   OtaReadinessSummary,
   OtaFinding,
@@ -38,11 +40,136 @@ describe('getPhaseDisplay', () => {
   });
 });
 
+describe('getProposalPhase', () => {
+  const makeProposal = (
+    overrides?: Partial<LightspeedProposal['status']>,
+  ): LightspeedProposal =>
+    ({
+      spec: { request: 'test' },
+      status: overrides,
+    }) as LightspeedProposal;
+
+  it('returns Pending when no status', () => {
+    expect(getProposalPhase(makeProposal())).toBe('Pending');
+  });
+
+  it('returns Pending when no conditions and no analysis results', () => {
+    expect(getProposalPhase(makeProposal({ conditions: [] }))).toBe('Pending');
+  });
+
+  it('returns Analyzing when analysis has results but Analyzed condition not set', () => {
+    expect(
+      getProposalPhase(
+        makeProposal({
+          steps: {
+            analysis: {
+              results: [{ name: 'test-analysis-1', outcome: 'Running' }],
+            },
+          },
+        }),
+      ),
+    ).toBe('Analyzing');
+  });
+
+  it('returns Proposed when Analyzed=True', () => {
+    expect(
+      getProposalPhase(
+        makeProposal({
+          conditions: [{ type: 'Analyzed', status: 'True', lastTransitionTime: '' }],
+        }),
+      ),
+    ).toBe('Proposed');
+  });
+
+  it('returns Denied when Approved=False', () => {
+    expect(
+      getProposalPhase(
+        makeProposal({
+          conditions: [
+            { type: 'Analyzed', status: 'True', lastTransitionTime: '' },
+            { type: 'Approved', status: 'False', lastTransitionTime: '' },
+          ],
+        }),
+      ),
+    ).toBe('Denied');
+  });
+
+  it('returns Executing when Approved=True', () => {
+    expect(
+      getProposalPhase(
+        makeProposal({
+          conditions: [
+            { type: 'Analyzed', status: 'True', lastTransitionTime: '' },
+            { type: 'Approved', status: 'True', lastTransitionTime: '' },
+          ],
+        }),
+      ),
+    ).toBe('Executing');
+  });
+
+  it('returns Verifying when Executed=True', () => {
+    expect(
+      getProposalPhase(
+        makeProposal({
+          conditions: [
+            { type: 'Analyzed', status: 'True', lastTransitionTime: '' },
+            { type: 'Approved', status: 'True', lastTransitionTime: '' },
+            { type: 'Executed', status: 'True', lastTransitionTime: '' },
+          ],
+        }),
+      ),
+    ).toBe('Verifying');
+  });
+
+  it('returns Failed when Executed=False', () => {
+    expect(
+      getProposalPhase(
+        makeProposal({
+          conditions: [
+            { type: 'Analyzed', status: 'True', lastTransitionTime: '' },
+            { type: 'Approved', status: 'True', lastTransitionTime: '' },
+            { type: 'Executed', status: 'False', lastTransitionTime: '' },
+          ],
+        }),
+      ),
+    ).toBe('Failed');
+  });
+
+  it('returns Completed when Verified=True', () => {
+    expect(
+      getProposalPhase(
+        makeProposal({
+          conditions: [
+            { type: 'Analyzed', status: 'True', lastTransitionTime: '' },
+            { type: 'Approved', status: 'True', lastTransitionTime: '' },
+            { type: 'Executed', status: 'True', lastTransitionTime: '' },
+            { type: 'Verified', status: 'True', lastTransitionTime: '' },
+          ],
+        }),
+      ),
+    ).toBe('Completed');
+  });
+
+  it('returns Escalated when Escalated=True', () => {
+    expect(
+      getProposalPhase(
+        makeProposal({
+          conditions: [{ type: 'Escalated', status: 'True', lastTransitionTime: '' }],
+        }),
+      ),
+    ).toBe('Escalated');
+  });
+});
+
 describe('getRiskColor', () => {
-  it('maps risk levels to colors', () => {
+  it('maps risk levels to colors (case-insensitive)', () => {
+    expect(getRiskColor('Low')).toBe('green');
     expect(getRiskColor('low')).toBe('green');
+    expect(getRiskColor('Medium')).toBe('orange');
     expect(getRiskColor('medium')).toBe('orange');
+    expect(getRiskColor('High')).toBe('red');
     expect(getRiskColor('high')).toBe('red');
+    expect(getRiskColor('Critical')).toBe('red');
     expect(getRiskColor('critical')).toBe('red');
   });
 
@@ -53,74 +180,131 @@ describe('getRiskColor', () => {
 });
 
 describe('getAnalysisData', () => {
-  const makeProposal = (overrides?: Partial<LightspeedProposal['status']>): LightspeedProposal =>
+  const makeProposal = (
+    overrides?: Partial<LightspeedProposal['status']>,
+  ): LightspeedProposal =>
     ({
-      spec: { request: 'test', workflow: 'ota-advisory' },
+      spec: { request: 'test' },
       status: overrides,
     }) as LightspeedProposal;
 
-  it('returns undefined option when no status', () => {
-    const result = getAnalysisData(makeProposal());
-    expect(result.analysis).toBeUndefined();
+  const makeAnalysisResult = (
+    name: string,
+    options?: AnalysisResult['status'],
+  ): AnalysisResult =>
+    ({
+      metadata: { name },
+      spec: { proposalName: 'test-proposal' },
+      status: options,
+    }) as AnalysisResult;
+
+  it('returns undefined option when no analysis results referenced', () => {
+    const result = getAnalysisData(makeProposal(), []);
     expect(result.option).toBeUndefined();
     expect(result.components).toEqual([]);
   });
 
-  it('returns the first option by default', () => {
+  it('returns undefined option when no successful result reference', () => {
+    const proposal = makeProposal({
+      steps: {
+        analysis: {
+          results: [{ name: 'ar-1', outcome: 'Failed' }],
+        },
+      },
+    });
+    const ar = makeAnalysisResult('ar-1', {
+      options: [
+        {
+          title: 'Option A',
+          diagnosis: { summary: '', confidence: 'High', rootCause: '' },
+          proposal: {
+            description: '',
+            actions: [],
+            risk: 'Low',
+            reversible: 'Reversible',
+          },
+        },
+      ],
+    });
+    const result = getAnalysisData(proposal, [ar]);
+    expect(result.option).toBeUndefined();
+  });
+
+  it('returns the first option from a successful AnalysisResult', () => {
     const option = {
-      title: 'Option A',
-      summary: 'first',
-      diagnosis: { summary: '', confidence: '', rootCause: '' },
-      proposal: { description: '', actions: [], risk: 'low', reversible: true },
+      title: 'Update to 5.0.1',
+      summary: 'Safe upgrade',
+      diagnosis: { summary: 'All clear', confidence: 'High', rootCause: '' },
+      proposal: {
+        description: 'Update plan',
+        actions: [{ type: 'update', description: 'Set desiredUpdate' }],
+        risk: 'Low',
+        reversible: 'Reversible' as const,
+      },
       components: [{ type: 'custom', data: 1 }],
     };
-    const result = getAnalysisData(
-      makeProposal({
-        steps: { analysis: { options: [option] } },
-      }),
-    );
+    const proposal = makeProposal({
+      steps: {
+        analysis: {
+          results: [{ name: 'ar-1', outcome: 'Succeeded' }],
+        },
+      },
+    });
+    const ar = makeAnalysisResult('ar-1', { options: [option] });
+    const result = getAnalysisData(proposal, [ar]);
     expect(result.option).toBe(option);
     expect(result.components).toEqual(option.components);
   });
 
-  it('respects selectedOption index', () => {
-    const optionA = {
-      title: 'A',
-      summary: '',
-      diagnosis: { summary: '', confidence: '', rootCause: '' },
-      proposal: { description: '', actions: [], risk: 'low', reversible: true },
-      components: [{ type: 'a' }],
-    };
-    const optionB = {
-      title: 'B',
-      summary: '',
-      diagnosis: { summary: '', confidence: '', rootCause: '' },
-      proposal: { description: '', actions: [], risk: 'low', reversible: true },
-      components: [{ type: 'b' }],
-    };
-    const result = getAnalysisData(
-      makeProposal({
-        steps: { analysis: { selectedOption: 1, options: [optionA, optionB] } },
-      }),
-    );
-    expect(result.option).toBe(optionB);
-    expect(result.components).toEqual(optionB.components);
-  });
-
-  it('falls back to analysis-level components when option has none', () => {
+  it('returns empty components when option has no components', () => {
     const option = {
       title: 'A',
-      summary: '',
-      diagnosis: { summary: '', confidence: '', rootCause: '' },
-      proposal: { description: '', actions: [], risk: 'low', reversible: true },
+      diagnosis: { summary: '', confidence: 'High', rootCause: '' },
+      proposal: {
+        description: '',
+        actions: [],
+        risk: 'Low',
+        reversible: 'Reversible' as const,
+      },
     };
-    const analysisComponents: AdapterComponent[] = [{ type: 'fallback' }];
-    const result = getAnalysisData(
-      makeProposal({
-        steps: { analysis: { options: [option], components: analysisComponents } },
-      }),
-    );
-    expect(result.components).toEqual(analysisComponents);
+    const proposal = makeProposal({
+      steps: {
+        analysis: {
+          results: [{ name: 'ar-1', outcome: 'Succeeded' }],
+        },
+      },
+    });
+    const ar = makeAnalysisResult('ar-1', { options: [option] });
+    const result = getAnalysisData(proposal, [ar]);
+    expect(result.option).toBe(option);
+    expect(result.components).toEqual([]);
+  });
+
+  it('skips failed results and uses the successful one', () => {
+    const goodOption = {
+      title: 'Good',
+      diagnosis: { summary: '', confidence: 'High', rootCause: '' },
+      proposal: {
+        description: '',
+        actions: [],
+        risk: 'Low',
+        reversible: 'Reversible' as const,
+      },
+    };
+    const proposal = makeProposal({
+      steps: {
+        analysis: {
+          results: [
+            { name: 'ar-fail', outcome: 'Failed' },
+            { name: 'ar-good', outcome: 'Succeeded' },
+          ],
+        },
+      },
+    });
+    const arFail = makeAnalysisResult('ar-fail', { failureReason: 'timeout' });
+    const arGood = makeAnalysisResult('ar-good', { options: [goodOption] });
+    const result = getAnalysisData(proposal, [arFail, arGood]);
+    expect(result.option).toBe(goodOption);
   });
 });
 

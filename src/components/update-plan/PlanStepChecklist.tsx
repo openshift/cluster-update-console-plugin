@@ -2,11 +2,7 @@ import * as React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { Alert, Card, CardBody, CardTitle, Content, Divider, Label } from '@patternfly/react-core';
-import {
-  AnalysisData,
-  getReadinessSummary,
-  ReadinessCheck,
-} from '../../models/proposal';
+import { AnalysisData, getReadinessSummary, ReadinessCheck } from '../../models/proposal';
 import ReadinessStatusIcon from '../shared/ReadinessStatusIcon';
 import { I18N_NAMESPACE } from '../../utils/constants';
 

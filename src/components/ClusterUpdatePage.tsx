@@ -15,8 +15,9 @@ import {
 } from '@patternfly/react-core';
 import { useClusterVersion } from '../hooks/useClusterVersion';
 import { useUpdateProposals } from '../hooks/useUpdateProposals';
+import { useAnalysisResults } from '../hooks/useAnalysisResults';
 import { I18N_NAMESPACE, LABELS, isTerminalPhase } from '../utils/constants';
-import { LightspeedProposal } from '../models/proposal';
+import { LightspeedProposal, AnalysisResult, getProposalPhase } from '../models/proposal';
 import { ClusterVersion } from '../models/clusterversion';
 import UpdatePlanTab from './update-plan/UpdatePlanTab';
 import ActivePlansTab from './active-plans/ActivePlansTab';
@@ -29,6 +30,7 @@ export default function ClusterUpdatePage() {
 
   const [clusterVersion, cvLoaded, cvError] = useClusterVersion();
   const [proposalsRaw, proposalsLoaded, proposalsError] = useUpdateProposals();
+  const [analysisResultsRaw, , analysisResultsError] = useAnalysisResults();
 
   const proposalsAvailable = proposalsLoaded && !proposalsError;
   const proposals: LightspeedProposal[] = React.useMemo(
@@ -39,8 +41,16 @@ export default function ClusterUpdatePage() {
     [proposalsAvailable, proposalsRaw],
   );
 
+  const analysisResults: AnalysisResult[] = React.useMemo(
+    () => (analysisResultsError ? [] : (analysisResultsRaw ?? [])),
+    [analysisResultsError, analysisResultsRaw],
+  );
+
   const activePlans = React.useMemo(
-    () => proposals.filter((p: LightspeedProposal) => !isTerminalPhase(p.status?.phase)),
+    () =>
+      proposals.filter(
+        (p: LightspeedProposal) => !isTerminalPhase(getProposalPhase(p)),
+      ),
     [proposals],
   );
   const activeProposal = activePlans[0];
@@ -94,6 +104,7 @@ export default function ClusterUpdatePage() {
                       clusterVersion={clusterVersion as ClusterVersion}
                       proposals={proposals as LightspeedProposal[]}
                       activeProposal={activeProposal}
+                      analysisResults={analysisResults}
                     />
                   )}
                 </TabContentBody>
