@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { Card, CardBody, CardTitle, Grid, GridItem, Spinner, Title } from '@patternfly/react-core';
 import {
   usePrometheusPoll,

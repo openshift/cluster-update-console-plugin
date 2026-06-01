@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { Alert, Badge, Card, CardBody, CardTitle, Content, Icon } from '@patternfly/react-core';
 import { CheckCircleIcon } from '@patternfly/react-icons';
 import { AnalysisData, getFindings, ACTION_TYPES } from '../../models/proposal';
