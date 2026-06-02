@@ -1,0 +1,168 @@
+# Mock AnalysisResult for local development and testing.
+#
+# Usage:
+#   1. Get the target Proposal name and UID:
+#      oc -n openshift-lightspeed get proposals.agentic.openshift.io -o custom-columns=NAME:.metadata.name,UID:.metadata.uid
+#
+#   2. Update the ownerReferences below with the correct UID and name.
+#
+#   3. Apply:
+#      oc apply -f mock-analysis-result.yaml
+#
+#   4. Patch the parent Proposal's status to reference this result:
+#      oc -n openshift-lightspeed patch --subresource status proposals.agentic.openshift.io <PROPOSAL-NAME> \
+#        --type merge -p '{"status":{"conditions":[{"type":"Analyzed","status":"True","reason":"AnalysisComplete","message":"Upgrade analysis completed successfully.","lastTransitionTime":"2026-06-01T15:00:00Z"}],"steps":{"analysis":{"conditions":[{"type":"Complete","status":"True","reason":"Succeeded","message":"Analysis finished with 1 option.","lastTransitionTime":"2026-06-01T15:00:00Z"}],"results":[{"name":"<PROPOSAL-NAME>-analysis-1","outcome":"Succeeded"}]}}}}'
+
+apiVersion: agentic.openshift.io/v1alpha1
+kind: AnalysisResult
+metadata:
+  # Name must match the results[].name referenced from the parent Proposal status
+  name: ota-5-0-0-0-ci-2026-05-31-043410-to-5-0-1-analysis-1
+  namespace: openshift-lightspeed
+  ownerReferences:
+    - apiVersion: agentic.openshift.io/v1alpha1
+      kind: Proposal
+      # UPDATE these to match your cluster's Proposal
+      name: ota-5-0-0-0-ci-2026-05-31-043410-to-5-0-1
+      uid: f1856c25-e7d1-4c91-89b8-1d96f3b5e826
+      controller: true
+      blockOwnerDeletion: true
+spec:
+  proposalName: ota-5-0-0-0-ci-2026-05-31-043410-to-5-0-1
+status:
+  conditions:
+    - type: Complete
+      status: "True"
+      reason: Succeeded
+      message: Analysis completed successfully
+      lastTransitionTime: "2026-06-01T15:00:00Z"
+  options:
+    - title: "Update to 5.0.1"
+      summary: "Patch update from 5.0.0-0.ci to 5.0.1 — low risk, ~45 min downtime."
+      diagnosis:
+        summary: |
+          Cluster is healthy and ready for upgrade. All cluster operators are available.
+          No deprecated APIs detected in active workloads. OLM operators are compatible
+          with the target version.
+        rootCause: "Routine patch update with no known regressions."
+        confidence: High
+      proposal:
+        description: |
+          This is a standard z-stream patch update. The cluster version operator will
+          orchestrate the update by rolling out new machine configs and operator versions.
+          Expected total time is approximately 45 minutes.
+        risk: Low
+        estimatedImpact: "~45 minutes"
+        reversible: Reversible
+        actions:
+          - type: update
+            description: "Set desiredUpdate to 5.0.1 on the ClusterVersion resource"
+          - type: monitor
+            description: "Monitor cluster operator rollout progress"
+        rollbackPlan:
+          description: "Roll back by setting desiredUpdate to the previous version"
+          command: "oc adm upgrade --to=5.0.0"
+      verification:
+        description: "Post-upgrade verification checks"
+        steps:
+          - name: cluster-operators-available
+            type: command
+            command: "oc get co -o json | jq '.items[] | select(.status.conditions[] | select(.type==\"Available\" and .status!=\"True\")) | .metadata.name'"
+            expected: "All cluster operators should report Available=True"
+          - name: cluster-version-updated
+            type: command
+            command: "oc get clusterversion version -o jsonpath='{.status.history[0].version}'"
+            expected: "5.0.1"
+          - name: nodes-ready
+            type: command
+            command: "oc get nodes -o json | jq '.items[] | select(.status.conditions[] | select(.type==\"Ready\" and .status!=\"True\")) | .metadata.name'"
+            expected: "All nodes should report Ready=True"
+      rbac:
+        clusterScoped:
+          - apiGroups: ["config.openshift.io"]
+            resources: ["clusterversions"]
+            verbs: ["get", "update", "patch"]
+            justification: "Required to set desiredUpdate on the ClusterVersion resource"
+          - apiGroups: ["config.openshift.io"]
+            resources: ["clusteroperators"]
+            verbs: ["get", "list", "watch"]
+            justification: "Required to monitor cluster operator health during upgrade"
+        namespaceScoped:
+          - apiGroups: [""]
+            resources: ["pods"]
+            verbs: ["get", "list"]
+            justification: "Required to verify pod health in openshift-lightspeed namespace"
+      components:
+        - type: ota_readiness_summary
+          decision: recommend
+          checks:
+            - name: Cluster Operators
+              status: pass
+              detail: "All 36 cluster operators are Available=True, Degraded=False"
+            - name: Node Health
+              status: pass
+              detail: "All 6 nodes are Ready"
+            - name: API Compatibility
+              status: pass
+              detail: "No deprecated APIs detected in active workloads"
+            - name: OLM Operators
+              status: pass
+              detail: "All 3 OLM operators are compatible with 5.0.1"
+            - name: Certificate Validity
+              status: pass
+              detail: "All serving certificates are valid for at least 30 days"
+        - type: ota_finding
+          severity: info
+          check: operator_health
+          detail: "Cluster operator 'insights' is disabled (expected on disconnected clusters)"
+        - type: ota_olm_operator_status
+          operators:
+            - name: elasticsearch-operator
+              namespace: openshift-operators-redhat
+              displayName: "OpenShift Elasticsearch Operator"
+              installedVersion: "5.8.16"
+              channel: stable-5.8
+              source: redhat-operators
+              installPlanApproval: Automatic
+              pendingUpgrade: false
+              compatibleWithTarget: true
+              availableChannels: ["stable-5.8", "stable-6.0"]
+              lifecycle:
+                productName: "OpenShift Elasticsearch Operator"
+                supportPhase: "Full Support"
+                ocpVersions: "4.14 - 5.0"
+            - name: jaeger-product
+              namespace: openshift-distributed-tracing
+              displayName: "Red Hat OpenShift distributed tracing platform"
+              installedVersion: "1.57.0"
+              channel: stable
+              source: redhat-operators
+              installPlanApproval: Manual
+              pendingUpgrade: true
+              pendingVersion: "1.58.0"
+              compatibleWithTarget: true
+              availableChannels: ["stable"]
+              lifecycle:
+                productName: "Red Hat distributed tracing platform"
+                supportPhase: "Maintenance Support"
+                ocpVersions: "4.12 - 5.0"
+                maintenanceEnds: "2026-12-31"
+            - name: servicemeshoperator
+              namespace: openshift-operators
+              displayName: "Red Hat OpenShift Service Mesh"
+              installedVersion: "2.6.3"
+              channel: stable
+              source: redhat-operators
+              installPlanApproval: Automatic
+              pendingUpgrade: false
+              compatibleWithTarget: true
+              availableChannels: ["stable"]
+              lifecycle:
+                productName: "Red Hat OpenShift Service Mesh"
+                supportPhase: "Full Support"
+                ocpVersions: "4.14 - 5.0"
+          summary:
+            totalOperators: 3
+            pendingUpgrades: 1
+            manualApproval: 1
+            incompatibleWithTarget: 0
