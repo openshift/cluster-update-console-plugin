@@ -187,7 +187,7 @@ export const getPhaseDisplay = (phase?: AgenticRunPhase | string): PhaseDisplay 
 };
 
 export const getRiskColor = (risk?: string): 'green' | 'orange' | 'red' | 'grey' => {
-  switch (risk) {
+  switch (risk?.toLowerCase()) {
     case 'low':
       return 'green';
     case 'medium':
