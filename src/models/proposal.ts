@@ -218,10 +218,17 @@ export const getAnalysisDataFromResult = (
     return { components: [] };
   }
   const option = result.status.options[0];
-  const raw = (option.components as AnalysisDataPayload)?.analysisData;
+  const comp = option.components;
 
-  // analysisData can be an array of typed components (PR 1379 format)
-  // or a flat object (legacy format)
+  // components is an array of typed adapter components directly
+  if (Array.isArray(comp)) {
+    return {
+      components: comp as AdapterComponent[],
+    };
+  }
+
+  // components is an object — check for nested analysisData key
+  const raw = (comp as AnalysisDataPayload)?.analysisData;
   if (Array.isArray(raw)) {
     return {
       components: raw as AdapterComponent[],
