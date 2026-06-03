@@ -1,14 +1,16 @@
 import {
   getPhaseDisplay,
   getRiskColor,
-  getAnalysisData,
   getReadinessSummary,
   getFindings,
   getOlmOperatorStatus,
+  getAnalysisDataFromResult,
   sortFindings,
+  derivePhase,
   COMPONENT_TYPES,
-  LightspeedProposal,
   AdapterComponent,
+  LightspeedProposal,
+  LightspeedAnalysisResult,
   OtaReadinessSummary,
   OtaFinding,
   OtaOlmOperatorStatus,
@@ -52,75 +54,75 @@ describe('getRiskColor', () => {
   });
 });
 
-describe('getAnalysisData', () => {
-  const makeProposal = (overrides?: Partial<LightspeedProposal['status']>): LightspeedProposal =>
+describe('getAnalysisDataFromResult', () => {
+  it('returns empty components when result is undefined', () => {
+    const data = getAnalysisDataFromResult(undefined);
+    expect(data.components).toEqual([]);
+    expect(data.analysisData).toBeUndefined();
+  });
+
+  it('returns empty components when result has no options', () => {
+    const result = { spec: { proposalName: 'test' }, status: {} } as LightspeedAnalysisResult;
+    const data = getAnalysisDataFromResult(result);
+    expect(data.components).toEqual([]);
+  });
+
+  it('extracts typed components array from analysisData', () => {
+    const components = [
+      { type: 'ota_readiness_summary', decision: 'recommend', checks: [] },
+      { type: 'ota_finding', severity: 'info', check: 'test', detail: 'ok' },
+    ];
+    const result = {
+      spec: { proposalName: 'test' },
+      status: { options: [{ title: 'Option', components: { analysisData: components } }] },
+    } as unknown as LightspeedAnalysisResult;
+    const data = getAnalysisDataFromResult(result);
+    expect(data.components).toEqual(components);
+    expect(data.analysisData).toBeUndefined();
+  });
+
+  it('extracts legacy flat object from analysisData', () => {
+    const legacyData = { decision: 'recommend', summary: 'All good' };
+    const result = {
+      spec: { proposalName: 'test' },
+      status: { options: [{ title: 'Option', components: { analysisData: legacyData } }] },
+    } as unknown as LightspeedAnalysisResult;
+    const data = getAnalysisDataFromResult(result);
+    expect(data.components).toEqual([]);
+    expect(data.analysisData).toEqual(legacyData);
+  });
+});
+
+describe('derivePhase', () => {
+  const makeProposal = (conditions: { type: string; status: string; reason?: string }[]): LightspeedProposal =>
     ({
-      spec: { request: 'test', workflow: 'ota-advisory' },
-      status: overrides,
-    }) as LightspeedProposal;
+      spec: { request: 'test', analysis: { agent: 'default' } },
+      status: { conditions },
+    }) as unknown as LightspeedProposal;
 
-  it('returns undefined option when no status', () => {
-    const result = getAnalysisData(makeProposal());
-    expect(result.analysis).toBeUndefined();
-    expect(result.option).toBeUndefined();
-    expect(result.components).toEqual([]);
+  it('returns Pending when no conditions', () => {
+    expect(derivePhase(undefined)).toBe('Pending');
+    expect(derivePhase(makeProposal([]))).toBe('Pending');
   });
 
-  it('returns the first option by default', () => {
-    const option = {
-      title: 'Option A',
-      summary: 'first',
-      diagnosis: { summary: '', confidence: '', rootCause: '' },
-      proposal: { description: '', actions: [], risk: 'low', reversible: true },
-      components: [{ type: 'custom', data: 1 }],
-    };
-    const result = getAnalysisData(
-      makeProposal({
-        steps: { analysis: { options: [option] } },
-      }),
-    );
-    expect(result.option).toBe(option);
-    expect(result.components).toEqual(option.components);
+  it('returns Analyzing when Analyzed=False', () => {
+    expect(derivePhase(makeProposal([{ type: 'Analyzed', status: 'False' }]))).toBe('Analyzing');
   });
 
-  it('respects selectedOption index', () => {
-    const optionA = {
-      title: 'A',
-      summary: '',
-      diagnosis: { summary: '', confidence: '', rootCause: '' },
-      proposal: { description: '', actions: [], risk: 'low', reversible: true },
-      components: [{ type: 'a' }],
-    };
-    const optionB = {
-      title: 'B',
-      summary: '',
-      diagnosis: { summary: '', confidence: '', rootCause: '' },
-      proposal: { description: '', actions: [], risk: 'low', reversible: true },
-      components: [{ type: 'b' }],
-    };
-    const result = getAnalysisData(
-      makeProposal({
-        steps: { analysis: { selectedOption: 1, options: [optionA, optionB] } },
-      }),
-    );
-    expect(result.option).toBe(optionB);
-    expect(result.components).toEqual(optionB.components);
+  it('returns Failed when Analyzed=False with reason Failed', () => {
+    expect(derivePhase(makeProposal([{ type: 'Analyzed', status: 'False', reason: 'Failed' }]))).toBe('Failed');
   });
 
-  it('falls back to analysis-level components when option has none', () => {
-    const option = {
-      title: 'A',
-      summary: '',
-      diagnosis: { summary: '', confidence: '', rootCause: '' },
-      proposal: { description: '', actions: [], risk: 'low', reversible: true },
-    };
-    const analysisComponents: AdapterComponent[] = [{ type: 'fallback' }];
-    const result = getAnalysisData(
-      makeProposal({
-        steps: { analysis: { options: [option], components: analysisComponents } },
-      }),
-    );
-    expect(result.components).toEqual(analysisComponents);
+  it('returns Analysed when analysis-only (execution/verification skipped)', () => {
+    expect(derivePhase(makeProposal([
+      { type: 'Analyzed', status: 'True' },
+      { type: 'Executed', status: 'True', reason: 'Skipped' },
+      { type: 'Verified', status: 'True', reason: 'Skipped' },
+    ]))).toBe('Analysed');
+  });
+
+  it('returns Escalated when Escalated=True', () => {
+    expect(derivePhase(makeProposal([{ type: 'Escalated', status: 'True' }]))).toBe('Escalated');
   });
 });
 

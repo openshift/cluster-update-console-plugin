@@ -31,6 +31,12 @@ const PhaseIcon: React.FC<PhaseIconProps> = ({ phase }) => {
           <SearchIcon />
         </Icon>
       );
+    case 'Analysed':
+      return (
+        <Icon status="success">
+          <CheckCircleIcon />
+        </Icon>
+      );
     case 'Proposed':
       return (
         <Icon status="warning">
