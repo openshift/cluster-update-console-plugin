@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useHistory } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { k8sPatch } from '@openshift-console/dynamic-plugin-sdk';
 import {
   Alert,
@@ -30,7 +30,7 @@ const CONFIRM_TIMEOUT_MS = 5000;
 
 const DecisionActions: React.FC<DecisionActionsProps> = ({ proposal, clusterVersion }) => {
   const { t } = useTranslation(I18N_NAMESPACE);
-  const history = useHistory();
+  const navigate = useNavigate();
 
   // Find the ProposalApproval matching this proposal (same name/namespace)
   const [approvals] = useProposalApprovals();
@@ -97,7 +97,7 @@ const DecisionActions: React.FC<DecisionActionsProps> = ({ proposal, clusterVers
           model: ClusterVersionModel,
           resource: clusterVersion,
         });
-        history.push('/settings/cluster');
+        navigate('/settings/cluster');
       } catch (err) {
         setUpgradeError(getErrorMessage(err));
       }
@@ -109,7 +109,7 @@ const DecisionActions: React.FC<DecisionActionsProps> = ({ proposal, clusterVers
         setConfirmingApprove(false);
       }, CONFIRM_TIMEOUT_MS);
     }
-  }, [confirmingApprove, approveStage, proposal, clusterVersion, history, t]);
+  }, [confirmingApprove, approveStage, proposal, clusterVersion, navigate, t]);
 
   const handleDenyClick = React.useCallback(async () => {
     if (confirmingDeny) {
