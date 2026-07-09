@@ -9,11 +9,14 @@ WORKDIR /usr/src/app
 RUN LOCAL_YARN="node $(awk '/yarnPath:/{print $2}' .yarnrc.yml)" && \
     $LOCAL_YARN install --immutable && $LOCAL_YARN build
 
-FROM registry.access.redhat.com/ubi9-minimal
+FROM registry.access.redhat.com/ubi9/ubi-minimal
 
 USER 0
 
-RUN microdnf install -y nginx && microdnf clean all
+RUN INSTALL_PKGS="nginx" && \
+    dnf install -y --setopt=tsflags=nodocs $INSTALL_PKGS && \
+    rpm -V $INSTALL_PKGS && \
+    dnf -y clean all && rm -rf /var/cache/dnf/*
 
 COPY --from=build /usr/src/app/dist /usr/share/nginx/html
 
