@@ -14,9 +14,10 @@ FROM registry.access.redhat.com/ubi9/ubi-minimal
 USER 0
 
 RUN INSTALL_PKGS="nginx" && \
-    dnf install -y --setopt=tsflags=nodocs $INSTALL_PKGS && \
+    (dnf install -y --setopt=tsflags=nodocs $INSTALL_PKGS 2>/dev/null || microdnf install -y $INSTALL_PKGS) && \
     rpm -V $INSTALL_PKGS && \
-    dnf -y clean all && rm -rf /var/cache/dnf/*
+    (dnf -y clean all 2>/dev/null || microdnf clean all) && \
+    rm -rf /var/cache/dnf/* /var/cache/yum/*
 
 COPY --from=build /usr/src/app/dist /usr/share/nginx/html
 
