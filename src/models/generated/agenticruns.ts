@@ -1,8 +1,7 @@
 // Auto-generated from CRD — do not edit manually.
 // Regenerate with: make generate-types
 
-
-export type ProposalSpec = {
+export type AgenticRunSpec = {
   /** analysis defines per-step configuration for the analysis step, including which agent handles it a... */
   analysis: {
     /** agent is the name of the cluster-scoped Agent CR to use for this step. Defaults to "default" when... */
@@ -10,9 +9,9 @@ export type ProposalSpec = {
     /** tools provides per-step tools that replace the shared spec.tools for this step. Use this when dif... */
     tools?: {
       /** mcpServers defines external MCP (Model Context Protocol) servers the agent can connect to for add... */
-      mcpServers?: ({
+      mcpServers?: {
         /** headers to send to the MCP server. Maximum 20 items. */
-        headers?: ({
+        headers?: {
           /** name of the header (e.g., "Authorization", "X-API-Key"). Must be at least 1 character, containing... */
           name: string;
           /** valueFrom is the source of the header value. */
@@ -25,16 +24,16 @@ export type ProposalSpec = {
             /** type specifies the source type for the header value. Allowed values:   - "Secret"     — reads the... */
             type: 'Secret' | 'ServiceAccountToken' | 'Client';
           };
-        })[];
+        }[];
         /** name of the MCP server. Must start with a letter and contain only lowercase alphanumeric characte... */
         name: string;
         /** timeoutSeconds is the per-request timeout for calls to this MCP server, in seconds. Default is 5.... */
         timeoutSeconds?: number;
         /** url of the MCP server (HTTP/HTTPS). Must be an HTTP or HTTPS URL, maximum 2048 characters. */
         url: string;
-      })[];
+      }[];
       /** requiredSecrets declares Kubernetes Secrets that the sandbox pod needs at runtime. The cluster ad... */
-      requiredSecrets?: ({
+      requiredSecrets?: {
         /** description explains what this secret is used for, helping the cluster admin understand what cred... */
         description?: string;
         /** mountAs specifies how the secret is exposed in the sandbox pod. */
@@ -54,14 +53,14 @@ export type ProposalSpec = {
         };
         /** name of the Secret (must exist in the operator namespace). Must be a valid RFC 1123 DNS subdomain. */
         name: string;
-      })[];
+      }[];
       /** skills defines one or more OCI images containing skills to mount in the agent's sandbox pod. The ... */
-      skills?: ({
+      skills?: {
         /** image is the OCI image reference containing skills. The operator mounts this as a Kubernetes imag... */
         image: string;
         /** paths specifies which directories from the image are mounted. Each path is mounted as a separate ... */
-        paths: (string)[];
-      })[];
+        paths: string[];
+      }[];
     };
   };
   /** analysisOutput configures the analysis step's structured output. The mode field controls which bu... */
@@ -78,9 +77,9 @@ export type ProposalSpec = {
     /** tools provides per-step tools that replace the shared spec.tools for this step. Use this when dif... */
     tools?: {
       /** mcpServers defines external MCP (Model Context Protocol) servers the agent can connect to for add... */
-      mcpServers?: ({
+      mcpServers?: {
         /** headers to send to the MCP server. Maximum 20 items. */
-        headers?: ({
+        headers?: {
           /** name of the header (e.g., "Authorization", "X-API-Key"). Must be at least 1 character, containing... */
           name: string;
           /** valueFrom is the source of the header value. */
@@ -93,16 +92,16 @@ export type ProposalSpec = {
             /** type specifies the source type for the header value. Allowed values:   - "Secret"     — reads the... */
             type: 'Secret' | 'ServiceAccountToken' | 'Client';
           };
-        })[];
+        }[];
         /** name of the MCP server. Must start with a letter and contain only lowercase alphanumeric characte... */
         name: string;
         /** timeoutSeconds is the per-request timeout for calls to this MCP server, in seconds. Default is 5.... */
         timeoutSeconds?: number;
         /** url of the MCP server (HTTP/HTTPS). Must be an HTTP or HTTPS URL, maximum 2048 characters. */
         url: string;
-      })[];
+      }[];
       /** requiredSecrets declares Kubernetes Secrets that the sandbox pod needs at runtime. The cluster ad... */
-      requiredSecrets?: ({
+      requiredSecrets?: {
         /** description explains what this secret is used for, helping the cluster admin understand what cred... */
         description?: string;
         /** mountAs specifies how the secret is exposed in the sandbox pod. */
@@ -122,14 +121,14 @@ export type ProposalSpec = {
         };
         /** name of the Secret (must exist in the operator namespace). Must be a valid RFC 1123 DNS subdomain. */
         name: string;
-      })[];
+      }[];
       /** skills defines one or more OCI images containing skills to mount in the agent's sandbox pod. The ... */
-      skills?: ({
+      skills?: {
         /** image is the OCI image reference containing skills. The operator mounts this as a Kubernetes imag... */
         image: string;
         /** paths specifies which directories from the image are mounted. Each path is mounted as a separate ... */
-        paths: (string)[];
-      })[];
+        paths: string[];
+      }[];
     };
   };
   /** request is the user's original request, alert description, or a description of what triggered thi... */
@@ -137,13 +136,13 @@ export type ProposalSpec = {
   /** revisionFeedback is the user's free-text feedback requesting changes to the analysis. Patching th... */
   revisionFeedback?: string;
   /** targetNamespaces are the Kubernetes namespace(s) this proposal operates on. Used for RBAC scoping... */
-  targetNamespaces?: (string)[];
+  targetNamespaces?: string[];
   /** tools defines the default tools for all steps: skills images, MCP servers, and required secrets. ... */
   tools?: {
     /** mcpServers defines external MCP (Model Context Protocol) servers the agent can connect to for add... */
-    mcpServers?: ({
+    mcpServers?: {
       /** headers to send to the MCP server. Maximum 20 items. */
-      headers?: ({
+      headers?: {
         /** name of the header (e.g., "Authorization", "X-API-Key"). Must be at least 1 character, containing... */
         name: string;
         /** valueFrom is the source of the header value. */
@@ -156,16 +155,16 @@ export type ProposalSpec = {
           /** type specifies the source type for the header value. Allowed values:   - "Secret"     — reads the... */
           type: 'Secret' | 'ServiceAccountToken' | 'Client';
         };
-      })[];
+      }[];
       /** name of the MCP server. Must start with a letter and contain only lowercase alphanumeric characte... */
       name: string;
       /** timeoutSeconds is the per-request timeout for calls to this MCP server, in seconds. Default is 5.... */
       timeoutSeconds?: number;
       /** url of the MCP server (HTTP/HTTPS). Must be an HTTP or HTTPS URL, maximum 2048 characters. */
       url: string;
-    })[];
+    }[];
     /** requiredSecrets declares Kubernetes Secrets that the sandbox pod needs at runtime. The cluster ad... */
-    requiredSecrets?: ({
+    requiredSecrets?: {
       /** description explains what this secret is used for, helping the cluster admin understand what cred... */
       description?: string;
       /** mountAs specifies how the secret is exposed in the sandbox pod. */
@@ -185,14 +184,14 @@ export type ProposalSpec = {
       };
       /** name of the Secret (must exist in the operator namespace). Must be a valid RFC 1123 DNS subdomain. */
       name: string;
-    })[];
+    }[];
     /** skills defines one or more OCI images containing skills to mount in the agent's sandbox pod. The ... */
-    skills?: ({
+    skills?: {
       /** image is the OCI image reference containing skills. The operator mounts this as a Kubernetes imag... */
       image: string;
       /** paths specifies which directories from the image are mounted. Each path is mounted as a separate ... */
-      paths: (string)[];
-    })[];
+      paths: string[];
+    }[];
   };
   /** verification defines per-step configuration for the verification step. Omit to skip verification.... */
   verification?: {
@@ -201,9 +200,9 @@ export type ProposalSpec = {
     /** tools provides per-step tools that replace the shared spec.tools for this step. Use this when dif... */
     tools?: {
       /** mcpServers defines external MCP (Model Context Protocol) servers the agent can connect to for add... */
-      mcpServers?: ({
+      mcpServers?: {
         /** headers to send to the MCP server. Maximum 20 items. */
-        headers?: ({
+        headers?: {
           /** name of the header (e.g., "Authorization", "X-API-Key"). Must be at least 1 character, containing... */
           name: string;
           /** valueFrom is the source of the header value. */
@@ -216,16 +215,16 @@ export type ProposalSpec = {
             /** type specifies the source type for the header value. Allowed values:   - "Secret"     — reads the... */
             type: 'Secret' | 'ServiceAccountToken' | 'Client';
           };
-        })[];
+        }[];
         /** name of the MCP server. Must start with a letter and contain only lowercase alphanumeric characte... */
         name: string;
         /** timeoutSeconds is the per-request timeout for calls to this MCP server, in seconds. Default is 5.... */
         timeoutSeconds?: number;
         /** url of the MCP server (HTTP/HTTPS). Must be an HTTP or HTTPS URL, maximum 2048 characters. */
         url: string;
-      })[];
+      }[];
       /** requiredSecrets declares Kubernetes Secrets that the sandbox pod needs at runtime. The cluster ad... */
-      requiredSecrets?: ({
+      requiredSecrets?: {
         /** description explains what this secret is used for, helping the cluster admin understand what cred... */
         description?: string;
         /** mountAs specifies how the secret is exposed in the sandbox pod. */
@@ -245,21 +244,21 @@ export type ProposalSpec = {
         };
         /** name of the Secret (must exist in the operator namespace). Must be a valid RFC 1123 DNS subdomain. */
         name: string;
-      })[];
+      }[];
       /** skills defines one or more OCI images containing skills to mount in the agent's sandbox pod. The ... */
-      skills?: ({
+      skills?: {
         /** image is the OCI image reference containing skills. The operator mounts this as a Kubernetes imag... */
         image: string;
         /** paths specifies which directories from the image are mounted. Each path is mounted as a separate ... */
-        paths: (string)[];
-      })[];
+        paths: string[];
+      }[];
     };
   };
 };
 
-export type ProposalStatus = {
+export type AgenticRunStatus = {
   /** conditions represent the latest available observations using the standard Kubernetes condition pa... */
-  conditions?: ({
+  conditions?: {
     /** lastTransitionTime is the last time the condition transitioned from one status to another. This s... */
     lastTransitionTime: string;
     /** message is a human readable message indicating details about the transition. This may be an empty... */
@@ -272,13 +271,13 @@ export type ProposalStatus = {
     status: 'True' | 'False' | 'Unknown';
     /** type of condition in CamelCase or in foo.example.com/CamelCase. */
     type: string;
-  })[];
+  }[];
   /** steps contains the per-step observed state (analysis, execution, verification). Each step indepen... */
   steps?: {
     /** analysis is the observed state of the analysis step. */
     analysis?: {
       /** conditions for this step. */
-      conditions?: ({
+      conditions?: {
         /** lastTransitionTime is the last time the condition transitioned from one status to another. This s... */
         lastTransitionTime: string;
         /** message is a human readable message indicating details about the transition. This may be an empty... */
@@ -291,14 +290,14 @@ export type ProposalStatus = {
         status: 'True' | 'False' | 'Unknown';
         /** type of condition in CamelCase or in foo.example.com/CamelCase. */
         type: string;
-      })[];
+      }[];
       /** results references AnalysisResult CRs, newest last. Each entry corresponds to one analysis attempt. */
-      results?: ({
+      results?: {
         /** name is the name of the result CR. */
         name: string;
         /** outcome indicates the result of this step attempt. Must be one of: Succeeded, Failed. */
         outcome: 'Succeeded' | 'Failed';
-      })[];
+      }[];
       /** sandbox tracks the sandbox used. */
       sandbox?: {
         /** claimName is the name of the SandboxClaim resource that owns the sandbox pod. Maximum 253 charact... */
@@ -310,7 +309,7 @@ export type ProposalStatus = {
     /** escalation is the observed state of the escalation step. */
     escalation?: {
       /** conditions for this step. */
-      conditions?: ({
+      conditions?: {
         /** lastTransitionTime is the last time the condition transitioned from one status to another. This s... */
         lastTransitionTime: string;
         /** message is a human readable message indicating details about the transition. This may be an empty... */
@@ -323,14 +322,14 @@ export type ProposalStatus = {
         status: 'True' | 'False' | 'Unknown';
         /** type of condition in CamelCase or in foo.example.com/CamelCase. */
         type: string;
-      })[];
+      }[];
       /** results references EscalationResult CRs, newest last. */
-      results?: ({
+      results?: {
         /** name is the name of the result CR. */
         name: string;
         /** outcome indicates the result of this step attempt. Must be one of: Succeeded, Failed. */
         outcome: 'Succeeded' | 'Failed';
-      })[];
+      }[];
       /** sandbox tracks the sandbox used. */
       sandbox?: {
         /** claimName is the name of the SandboxClaim resource that owns the sandbox pod. Maximum 253 charact... */
@@ -342,7 +341,7 @@ export type ProposalStatus = {
     /** execution is the observed state of the execution step. */
     execution?: {
       /** conditions for this step. */
-      conditions?: ({
+      conditions?: {
         /** lastTransitionTime is the last time the condition transitioned from one status to another. This s... */
         lastTransitionTime: string;
         /** message is a human readable message indicating details about the transition. This may be an empty... */
@@ -355,14 +354,14 @@ export type ProposalStatus = {
         status: 'True' | 'False' | 'Unknown';
         /** type of condition in CamelCase or in foo.example.com/CamelCase. */
         type: string;
-      })[];
+      }[];
       /** results references ExecutionResult CRs, newest last. Each entry corresponds to one execution atte... */
-      results?: ({
+      results?: {
         /** name is the name of the result CR. */
         name: string;
         /** outcome indicates the result of this step attempt. Must be one of: Succeeded, Failed. */
         outcome: 'Succeeded' | 'Failed';
-      })[];
+      }[];
       /** retryCount tracks how many times execution+verification has been retried for the current analysis... */
       retryCount?: number;
       /** sandbox tracks the sandbox used. */
@@ -376,7 +375,7 @@ export type ProposalStatus = {
     /** verification is the observed state of the verification step. */
     verification?: {
       /** conditions for this step. */
-      conditions?: ({
+      conditions?: {
         /** lastTransitionTime is the last time the condition transitioned from one status to another. This s... */
         lastTransitionTime: string;
         /** message is a human readable message indicating details about the transition. This may be an empty... */
@@ -389,14 +388,14 @@ export type ProposalStatus = {
         status: 'True' | 'False' | 'Unknown';
         /** type of condition in CamelCase or in foo.example.com/CamelCase. */
         type: string;
-      })[];
+      }[];
       /** results references VerificationResult CRs, newest last. Each entry corresponds to one verificatio... */
-      results?: ({
+      results?: {
         /** name is the name of the result CR. */
         name: string;
         /** outcome indicates the result of this step attempt. Must be one of: Succeeded, Failed. */
         outcome: 'Succeeded' | 'Failed';
-      })[];
+      }[];
       /** sandbox tracks the sandbox used. */
       sandbox?: {
         /** claimName is the name of the SandboxClaim resource that owns the sandbox pod. Maximum 253 charact... */

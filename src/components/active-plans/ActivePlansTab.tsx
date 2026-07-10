@@ -5,13 +5,13 @@ import { Timestamp } from '@openshift-console/dynamic-plugin-sdk';
 import { EmptyState, EmptyStateBody } from '@patternfly/react-core';
 import { SearchIcon } from '@patternfly/react-icons';
 import { Table, Thead, Tbody, Tr, Th, Td } from '@patternfly/react-table';
-import { LightspeedProposal, derivePhase } from '../../models/proposal';
+import { LightspeedAgenticRun, derivePhase } from '../../models/agenticrun';
 import { I18N_NAMESPACE, LABELS } from '../../utils/constants';
 import PhaseLabel from '../shared/PhaseLabel';
 import './active-plans.css';
 
 type ActivePlansTabProps = {
-  activePlans: LightspeedProposal[];
+  activePlans: LightspeedAgenticRun[];
 };
 
 const ActivePlansTab: React.FC<ActivePlansTabProps> = ({ activePlans }) => {
@@ -38,27 +38,27 @@ const ActivePlansTab: React.FC<ActivePlansTabProps> = ({ activePlans }) => {
           </Tr>
         </Thead>
         <Tbody>
-          {activePlans.map((proposal) => {
-            const targetVersion = proposal.metadata?.labels?.[LABELS.targetVersion] ?? '-';
-            const updateType = proposal.metadata?.labels?.[LABELS.updateType] ?? '-';
+          {activePlans.map((agenticRun) => {
+            const targetVersion = agenticRun.metadata?.labels?.[LABELS.targetVersion] ?? '-';
+            const updateType = agenticRun.metadata?.labels?.[LABELS.updateType] ?? '-';
 
             return (
-              <Tr key={proposal.metadata?.uid ?? proposal.metadata?.name}>
+              <Tr key={agenticRun.metadata?.uid ?? agenticRun.metadata?.name}>
                 <Td dataLabel={t('Name')}>
                   <Link
-                    to={`/lightspeed/proposals/${proposal.metadata?.namespace}/${proposal.metadata?.name}`}
+                    to={`/lightspeed/runs/${agenticRun.metadata?.namespace}/${agenticRun.metadata?.name}`}
                     className="cluster-update-plugin__check-link"
                   >
-                    {proposal.metadata?.name}
+                    {agenticRun.metadata?.name}
                   </Link>
                 </Td>
                 <Td dataLabel={t('Target Version')}>{targetVersion}</Td>
                 <Td dataLabel={t('Phase')}>
-                  <PhaseLabel phase={derivePhase(proposal)} />
+                  <PhaseLabel phase={derivePhase(agenticRun)} />
                 </Td>
                 <Td dataLabel={t('Update Type')}>{updateType}</Td>
                 <Td dataLabel={t('Age')}>
-                  <Timestamp timestamp={proposal.metadata?.creationTimestamp} simple />
+                  <Timestamp timestamp={agenticRun.metadata?.creationTimestamp} simple />
                 </Td>
               </Tr>
             );

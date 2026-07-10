@@ -4,11 +4,11 @@ import { ClusterVersion, ClusterVersionModel } from '../models/clusterversion';
 import { ANNOTATIONS } from '../utils/constants';
 import { getErrorMessage } from '../utils/error';
 
-export const useCreateProposal = () => {
+export const useCreateAgenticRun = () => {
   const [creating, setCreating] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  const requestProposal = React.useCallback(
+  const requestAgenticRun = React.useCallback(
     async (clusterVersion: ClusterVersion, targetVersion: string) => {
       setCreating(true);
       setError(null);
@@ -37,5 +37,5 @@ export const useCreateProposal = () => {
 
   const clearError = React.useCallback(() => setError(null), []);
 
-  return { requestProposal, creating, error, clearError };
+  return { requestAgenticRun, creating, error, clearError };
 };

@@ -13,39 +13,38 @@ import {
   Label,
 } from '@patternfly/react-core';
 import { CheckIcon } from '@patternfly/react-icons';
-import { LightspeedProposal, LightspeedProposalApproval } from '../../models/proposal';
+import { LightspeedAgenticRun, LightspeedAgenticRunApproval } from '../../models/agenticrun';
 import { ClusterVersion, ClusterVersionModel } from '../../models/clusterversion';
 import { I18N_NAMESPACE, LABELS } from '../../utils/constants';
 import { unsanitizeVersion } from '../../utils/version';
 import { getErrorMessage } from '../../utils/error';
 import { useApprovalActions } from '../../hooks/useApprovalActions';
-import { useProposalApprovals } from '../../hooks/useUpdateProposals';
+import { useAgenticRunApprovals } from '../../hooks/useAgenticRuns';
 
 type DecisionActionsProps = {
-  proposal: LightspeedProposal;
+  agenticRun: LightspeedAgenticRun;
   clusterVersion: ClusterVersion;
 };
 
 const CONFIRM_TIMEOUT_MS = 5000;
 
-const DecisionActions: React.FC<DecisionActionsProps> = ({ proposal, clusterVersion }) => {
+const DecisionActions: React.FC<DecisionActionsProps> = ({ agenticRun, clusterVersion }) => {
   const { t } = useTranslation(I18N_NAMESPACE);
   const history = useHistory();
 
-  // Find the ProposalApproval matching this proposal (same name/namespace)
-  const [approvals] = useProposalApprovals();
+  // Find the AgenticRunApproval matching this run (same name/namespace)
+  const [approvals] = useAgenticRunApprovals();
   const approval = React.useMemo(
     () =>
       (approvals ?? []).find(
-        (a: LightspeedProposalApproval) =>
-          a.metadata?.name === proposal.metadata?.name &&
-          a.metadata?.namespace === proposal.metadata?.namespace,
+        (a: LightspeedAgenticRunApproval) =>
+          a.metadata?.name === agenticRun.metadata?.name &&
+          a.metadata?.namespace === agenticRun.metadata?.namespace,
       ),
-    [approvals, proposal.metadata?.name, proposal.metadata?.namespace],
+    [approvals, agenticRun.metadata?.name, agenticRun.metadata?.namespace],
   );
 
-  const { approveStage, denyStage, error, clearError, inProgress } =
-    useApprovalActions(approval);
+  const { approveStage, denyStage, error, clearError, inProgress } = useApprovalActions(approval);
 
   const [confirmingApprove, setConfirmingApprove] = React.useState(false);
   const [confirmingDeny, setConfirmingDeny] = React.useState(false);
@@ -69,7 +68,7 @@ const DecisionActions: React.FC<DecisionActionsProps> = ({ proposal, clusterVers
       const approved = await approveStage('Analysis');
       if (!approved) return;
 
-      const rawTarget = proposal.metadata?.labels?.[LABELS.targetVersion] ?? '';
+      const rawTarget = agenticRun.metadata?.labels?.[LABELS.targetVersion] ?? '';
       const targetVersion = rawTarget ? unsanitizeVersion(rawTarget) : '';
       const release = clusterVersion.status?.availableUpdates?.find(
         (u) => u.version === targetVersion,
@@ -109,7 +108,7 @@ const DecisionActions: React.FC<DecisionActionsProps> = ({ proposal, clusterVers
         setConfirmingApprove(false);
       }, CONFIRM_TIMEOUT_MS);
     }
-  }, [confirmingApprove, approveStage, proposal, clusterVersion, history, t]);
+  }, [confirmingApprove, approveStage, agenticRun, clusterVersion, history, t]);
 
   const handleDenyClick = React.useCallback(async () => {
     if (confirmingDeny) {

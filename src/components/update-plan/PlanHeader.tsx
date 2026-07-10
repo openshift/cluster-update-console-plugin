@@ -3,25 +3,25 @@ import { useTranslation } from 'react-i18next';
 import { Timestamp } from '@openshift-console/dynamic-plugin-sdk';
 import { Flex, FlexItem, Label } from '@patternfly/react-core';
 import { ArrowRightIcon } from '@patternfly/react-icons';
-import { LightspeedProposal } from '../../models/proposal';
+import { LightspeedAgenticRun } from '../../models/agenticrun';
 import { I18N_NAMESPACE, LABELS } from '../../utils/constants';
 import { getUpdateType, unsanitizeVersion } from '../../utils/version';
 
 type PlanHeaderProps = {
-  proposal: LightspeedProposal;
+  agenticRun: LightspeedAgenticRun;
 };
 
-const PlanHeader: React.FC<PlanHeaderProps> = ({ proposal }) => {
+const PlanHeader: React.FC<PlanHeaderProps> = ({ agenticRun }) => {
   const { t } = useTranslation(I18N_NAMESPACE);
 
-  const labels = proposal.metadata?.labels ?? {};
+  const labels = agenticRun.metadata?.labels ?? {};
   const rawCurrent = labels[LABELS.currentVersion] ?? '';
   const rawTarget = labels[LABELS.targetVersion] ?? '';
   const currentVersion = rawCurrent ? unsanitizeVersion(rawCurrent) : t('unknown');
   const targetVersion = rawTarget ? unsanitizeVersion(rawTarget) : t('unknown');
   const updateType = labels[LABELS.updateType] ?? getUpdateType(currentVersion, targetVersion);
 
-  const creationTimestamp = proposal.metadata?.creationTimestamp;
+  const creationTimestamp = agenticRun.metadata?.creationTimestamp;
 
   return (
     <div className="cluster-update-plugin__plan-header">
