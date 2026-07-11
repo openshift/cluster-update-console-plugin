@@ -23,6 +23,8 @@ export const useApprovalActions = (approval?: LightspeedAgenticRunApproval) => {
       setError(null);
       try {
         const existingStages = currentApproval.spec?.stages ?? [];
+        if (existingStages.some((s) => s.type === stageType)) return true;
+
         const stageEntry: Record<string, unknown> = {
           type: stageType,
           decision: 'Approved',
