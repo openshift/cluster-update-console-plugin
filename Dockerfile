@@ -22,8 +22,8 @@ RUN INSTALL_PKGS="nginx" && \
 COPY --from=build /usr/src/app/dist /usr/share/nginx/html
 
 RUN mkdir -p /tmp/nginx && \
-    chgrp -R 0 /var/log/nginx /var/lib/nginx /usr/share/nginx/html /tmp/nginx && \
-    chmod -R g=u /var/log/nginx /var/lib/nginx /usr/share/nginx/html /tmp/nginx
+    chgrp -R 0 /var/log/nginx /var/lib/nginx /usr/share/nginx/html /tmp/nginx /run && \
+    chmod -R g=u /var/log/nginx /var/lib/nginx /usr/share/nginx/html /tmp/nginx /run
 
 USER 1001
 
