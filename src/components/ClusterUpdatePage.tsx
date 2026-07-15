@@ -14,9 +14,9 @@ import {
   Title,
 } from '@patternfly/react-core';
 import { useClusterVersion } from '../hooks/useClusterVersion';
-import { useUpdateProposals } from '../hooks/useUpdateProposals';
+import { useAgenticRuns } from '../hooks/useAgenticRuns';
 import { I18N_NAMESPACE, LABELS, TERMINAL_PHASES } from '../utils/constants';
-import { LightspeedProposal, derivePhase } from '../models/proposal';
+import { LightspeedAgenticRun, derivePhase } from '../models/agenticrun';
 import { ClusterVersion } from '../models/clusterversion';
 import UpdatePlanTab from './update-plan/UpdatePlanTab';
 import ActivePlansTab from './active-plans/ActivePlansTab';
@@ -28,20 +28,20 @@ export default function ClusterUpdatePage() {
   const [activeTab, setActiveTab] = React.useState<string | number>(0);
 
   const [clusterVersion, cvLoaded, cvError] = useClusterVersion();
-  const [proposalsRaw, proposalsLoaded, proposalsError] = useUpdateProposals();
+  const [agenticRunsRaw, agenticRunsLoaded, agenticRunsError] = useAgenticRuns();
 
-  const proposalsAvailable = proposalsLoaded && !proposalsError;
-  const proposals: LightspeedProposal[] = React.useMemo(
+  const agenticRunsAvailable = agenticRunsLoaded && !agenticRunsError;
+  const agenticRuns: LightspeedAgenticRun[] = React.useMemo(
     () =>
-      (proposalsAvailable ? (proposalsRaw ?? []) : []).filter(
-        (p: LightspeedProposal) => p.metadata?.labels?.[LABELS.updateType] !== undefined,
+      (agenticRunsAvailable ? (agenticRunsRaw ?? []) : []).filter(
+        (p: LightspeedAgenticRun) => p.metadata?.labels?.[LABELS.updateType] !== undefined,
       ),
-    [proposalsAvailable, proposalsRaw],
+    [agenticRunsAvailable, agenticRunsRaw],
   );
 
   const activePlans = React.useMemo(
-    () => proposals.filter((p: LightspeedProposal) => !TERMINAL_PHASES.has(derivePhase(p))),
-    [proposals],
+    () => agenticRuns.filter((p: LightspeedAgenticRun) => !TERMINAL_PHASES.has(derivePhase(p))),
+    [agenticRuns],
   );
 
   const pageTitle = t('Cluster Update');
@@ -65,11 +65,11 @@ export default function ClusterUpdatePage() {
           </Alert>
         </PageSection>
       )}
-      {proposalsError && (
+      {agenticRunsError && (
         <PageSection hasBodyWrapper={false}>
-          <Alert variant="warning" isInline title={t('Lightspeed proposals unavailable')}>
+          <Alert variant="warning" isInline title={t('Lightspeed agentic runs unavailable')}>
             {t(
-              'The Lightspeed Proposal CRD is not installed on this cluster. AI-driven update planning features are disabled.',
+              'The Lightspeed AgenticRun CRD is not installed on this cluster. AI-driven update planning features are disabled.',
             )}
           </Alert>
         </PageSection>
@@ -91,7 +91,7 @@ export default function ClusterUpdatePage() {
                   {activeTab === 0 && (
                     <UpdatePlanTab
                       clusterVersion={clusterVersion as ClusterVersion}
-                      proposals={proposals}
+                      agenticRuns={agenticRuns}
                     />
                   )}
                 </TabContentBody>

@@ -1,10 +1,10 @@
 import * as React from 'react';
 import { Label } from '@patternfly/react-core';
-import { getPhaseDisplay, ProposalPhase } from '../../models/proposal';
+import { getPhaseDisplay, AgenticRunPhase } from '../../models/agenticrun';
 import PhaseIcon from './PhaseIcon';
 
 type PhaseLabelProps = {
-  phase?: ProposalPhase | string;
+  phase?: AgenticRunPhase | string;
 };
 
 const PhaseLabel: React.FC<PhaseLabelProps> = ({ phase }) => {

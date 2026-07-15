@@ -4,33 +4,33 @@ import {
   K8sResourceCondition,
   getGroupVersionKindForModel,
 } from '@openshift-console/dynamic-plugin-sdk';
-import { ProposalSpec, ProposalStatus } from './generated/proposals';
-import { ProposalApprovalSpec, ProposalApprovalStatus } from './generated/proposalapprovals';
+import { AgenticRunSpec, AgenticRunStatus } from './generated/agenticruns';
+import { AgenticRunApprovalSpec, AgenticRunApprovalStatus } from './generated/agenticrunapprovals';
 import { ApprovalPolicySpec } from './generated/approvalpolicies';
 import { AnalysisResultSpec, AnalysisResultStatus } from './generated/analysisresults';
 
 // --- K8s Models ---
 
-export const LightspeedProposalModel: K8sModel = {
+export const LightspeedAgenticRunModel: K8sModel = {
   apiGroup: 'agentic.openshift.io',
   apiVersion: 'v1alpha1',
-  kind: 'Proposal',
-  plural: 'proposals',
-  abbr: 'LSP',
+  kind: 'AgenticRun',
+  plural: 'agenticruns',
+  abbr: 'LSAR',
   namespaced: true,
-  label: 'Proposal',
-  labelPlural: 'Proposals',
+  label: 'AgenticRun',
+  labelPlural: 'AgenticRuns',
 };
 
-export const ProposalApprovalModel: K8sModel = {
+export const AgenticRunApprovalModel: K8sModel = {
   apiGroup: 'agentic.openshift.io',
   apiVersion: 'v1alpha1',
-  kind: 'ProposalApproval',
-  plural: 'proposalapprovals',
+  kind: 'AgenticRunApproval',
+  plural: 'agenticrunapprovals',
   abbr: 'PA',
   namespaced: true,
-  label: 'ProposalApproval',
-  labelPlural: 'ProposalApprovals',
+  label: 'AgenticRunApproval',
+  labelPlural: 'AgenticRunApprovals',
 };
 
 export const AnalysisResultModel: K8sModel = {
@@ -55,21 +55,21 @@ export const ApprovalPolicyModel: K8sModel = {
   labelPlural: 'ApprovalPolicies',
 };
 
-export const LightspeedProposalGVK = getGroupVersionKindForModel(LightspeedProposalModel);
-export const ProposalApprovalGVK = getGroupVersionKindForModel(ProposalApprovalModel);
+export const LightspeedAgenticRunGVK = getGroupVersionKindForModel(LightspeedAgenticRunModel);
+export const AgenticRunApprovalGVK = getGroupVersionKindForModel(AgenticRunApprovalModel);
 export const AnalysisResultGVK = getGroupVersionKindForModel(AnalysisResultModel);
 export const ApprovalPolicyGVK = getGroupVersionKindForModel(ApprovalPolicyModel);
 
 // --- Resource Types (composed from generated CRD types + K8sResourceCommon) ---
 
-export type LightspeedProposal = K8sResourceCommon & {
-  spec: ProposalSpec;
-  status?: ProposalStatus;
+export type LightspeedAgenticRun = K8sResourceCommon & {
+  spec: AgenticRunSpec;
+  status?: AgenticRunStatus;
 };
 
-export type LightspeedProposalApproval = K8sResourceCommon & {
-  spec?: ProposalApprovalSpec;
-  status?: ProposalApprovalStatus;
+export type LightspeedAgenticRunApproval = K8sResourceCommon & {
+  spec?: AgenticRunApprovalSpec;
+  status?: AgenticRunApprovalStatus;
 };
 
 export type LightspeedAnalysisResult = K8sResourceCommon & {
@@ -84,7 +84,7 @@ export type LightspeedApprovalPolicy = K8sResourceCommon & {
 // --- Phase derivation ---
 // The CRD has no status.phase field. Derive it from status.conditions.
 
-export type ProposalPhase =
+export type AgenticRunPhase =
   | 'Pending'
   | 'Analyzing'
   | 'Analysed'
@@ -98,14 +98,18 @@ export type ProposalPhase =
   | 'Failed'
   | 'Escalated';
 
-export const ACTIVE_PROPOSAL_PHASES = new Set<ProposalPhase>([
-  'Analyzing', 'Analysed', 'Proposed', 'Completed', 'Escalated', 'Failed',
+export const ACTIVE_AGENTIC_RUN_PHASES = new Set<AgenticRunPhase>([
+  'Analyzing',
+  'Analysed',
+  'Proposed',
+  'Completed',
+  'Escalated',
+  'Failed',
 ]);
 
-export const derivePhase = (proposal?: LightspeedProposal): ProposalPhase => {
-  const conditions = proposal?.status?.conditions ?? [];
-  const find = (type: string) =>
-    conditions.find((c: K8sResourceCondition) => c.type === type);
+export const derivePhase = (agenticRun?: LightspeedAgenticRun): AgenticRunPhase => {
+  const conditions = agenticRun?.status?.conditions ?? [];
+  const find = (type: string) => conditions.find((c: K8sResourceCondition) => c.type === type);
 
   const escalated = find('Escalated');
   if (escalated?.status === 'True') return 'Escalated';
@@ -114,7 +118,7 @@ export const derivePhase = (proposal?: LightspeedProposal): ProposalPhase => {
   const executed = find('Executed');
   const analyzed = find('Analyzed');
 
-  // Analysis-only proposals: execution and verification are Skipped
+  // Analysis-only runs: execution and verification are Skipped
   const executionSkipped = executed?.reason === 'Skipped';
   const verificationSkipped = verified?.reason === 'Skipped';
   if (analyzed?.status === 'True' && executionSkipped && verificationSkipped) {
@@ -136,7 +140,7 @@ export const derivePhase = (proposal?: LightspeedProposal): ProposalPhase => {
   if (analyzed?.status === 'False') return 'Analyzing';
 
   // Check if analysis step has any results (in progress)
-  if (proposal?.status?.steps?.analysis?.results?.length) return 'Analyzing';
+  if (agenticRun?.status?.steps?.analysis?.results?.length) return 'Analyzing';
 
   // If any condition is Unknown, the operator is still reconciling
   if (conditions.some((c: K8sResourceCondition) => c.status === 'Unknown')) return 'Pending';
@@ -151,7 +155,7 @@ export type PhaseDisplay = {
   label: string;
 };
 
-export const getPhaseDisplay = (phase?: ProposalPhase | string): PhaseDisplay => {
+export const getPhaseDisplay = (phase?: AgenticRunPhase | string): PhaseDisplay => {
   switch (phase) {
     case 'Pending':
       return { color: 'grey', label: 'Pending' };
@@ -211,9 +215,7 @@ export type AnalysisData = {
   analysisData?: AnalysisDataPayload;
 };
 
-export const getAnalysisDataFromResult = (
-  result?: LightspeedAnalysisResult,
-): AnalysisData => {
+export const getAnalysisDataFromResult = (result?: LightspeedAnalysisResult): AnalysisData => {
   if (!result?.status?.options?.length) {
     return { components: [] };
   }

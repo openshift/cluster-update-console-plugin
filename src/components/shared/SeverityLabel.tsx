@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Label } from '@patternfly/react-core';
-import { SEVERITY_COLORS, SEVERITY_LABELS } from '../../models/proposal';
+import { SEVERITY_COLORS, SEVERITY_LABELS } from '../../models/agenticrun';
 import { I18N_NAMESPACE } from '../../utils/constants';
 
 type SeverityLabelProps = {

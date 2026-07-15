@@ -11,10 +11,10 @@ import {
   QuestionCircleIcon,
 } from '@patternfly/react-icons';
 import { Icon } from '@patternfly/react-core';
-import { ProposalPhase } from '../../models/proposal';
+import { AgenticRunPhase } from '../../models/agenticrun';
 
 type PhaseIconProps = {
-  phase?: ProposalPhase | string;
+  phase?: AgenticRunPhase | string;
 };
 
 const PhaseIcon: React.FC<PhaseIconProps> = ({ phase }) => {

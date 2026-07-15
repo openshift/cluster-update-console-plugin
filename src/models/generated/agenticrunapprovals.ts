@@ -1,10 +1,9 @@
 // Auto-generated from CRD — do not edit manually.
 // Regenerate with: make generate-types
 
-
-export type ProposalApprovalSpec = {
+export type AgenticRunApprovalSpec = {
   /** stages lists the approved (or denied) workflow steps. Each entry is a discriminated union keyed b... */
-  stages?: ({
+  stages?: {
     /** analysis contains approval parameters for the analysis step. Required when type is Analysis. */
     analysis?: {
       /** agent is the Agent CR for this step. Defaults to "default". */
@@ -33,14 +32,14 @@ export type ProposalApprovalSpec = {
       /** agent is the Agent CR for this step. Defaults to "default". */
       agent?: string;
     };
-  })[];
+  }[];
 };
 
-export type ProposalApprovalStatus = {
+export type AgenticRunApprovalStatus = {
   /** stages contains the per-stage approval status set by the controller. */
-  stages?: ({
+  stages?: {
     /** conditions for this approval stage. */
-    conditions?: ({
+    conditions?: {
       /** lastTransitionTime is the last time the condition transitioned from one status to another. This s... */
       lastTransitionTime: string;
       /** message is a human readable message indicating details about the transition. This may be an empty... */
@@ -53,8 +52,8 @@ export type ProposalApprovalStatus = {
       status: 'True' | 'False' | 'Unknown';
       /** type of condition in CamelCase or in foo.example.com/CamelCase. */
       type: string;
-    })[];
+    }[];
     /** name identifies the workflow step. */
     name: string;
-  })[];
+  }[];
 };

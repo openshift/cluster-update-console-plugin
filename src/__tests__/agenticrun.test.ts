@@ -9,12 +9,12 @@ import {
   derivePhase,
   COMPONENT_TYPES,
   AdapterComponent,
-  LightspeedProposal,
+  LightspeedAgenticRun,
   LightspeedAnalysisResult,
   OtaReadinessSummary,
   OtaFinding,
   OtaOlmOperatorStatus,
-} from '../models/proposal';
+} from '../models/agenticrun';
 
 describe('getPhaseDisplay', () => {
   it('maps known phases to expected colors', () => {
@@ -62,7 +62,7 @@ describe('getAnalysisDataFromResult', () => {
   });
 
   it('returns empty components when result has no options', () => {
-    const result = { spec: { proposalName: 'test' }, status: {} } as LightspeedAnalysisResult;
+    const result = { spec: { agenticRunName: 'test' }, status: {} } as LightspeedAnalysisResult;
     const data = getAnalysisDataFromResult(result);
     expect(data.components).toEqual([]);
   });
@@ -73,7 +73,7 @@ describe('getAnalysisDataFromResult', () => {
       { type: 'ota_finding', severity: 'info', check: 'test', detail: 'ok' },
     ];
     const result = {
-      spec: { proposalName: 'test' },
+      spec: { agenticRunName: 'test' },
       status: { options: [{ title: 'Option', components: { analysisData: components } }] },
     } as unknown as LightspeedAnalysisResult;
     const data = getAnalysisDataFromResult(result);
@@ -84,7 +84,7 @@ describe('getAnalysisDataFromResult', () => {
   it('extracts legacy flat object from analysisData', () => {
     const legacyData = { decision: 'recommend', summary: 'All good' };
     const result = {
-      spec: { proposalName: 'test' },
+      spec: { agenticRunName: 'test' },
       status: { options: [{ title: 'Option', components: { analysisData: legacyData } }] },
     } as unknown as LightspeedAnalysisResult;
     const data = getAnalysisDataFromResult(result);
@@ -94,35 +94,43 @@ describe('getAnalysisDataFromResult', () => {
 });
 
 describe('derivePhase', () => {
-  const makeProposal = (conditions: { type: string; status: string; reason?: string }[]): LightspeedProposal =>
+  const makeAgenticRun = (
+    conditions: { type: string; status: string; reason?: string }[],
+  ): LightspeedAgenticRun =>
     ({
       spec: { request: 'test', analysis: { agent: 'default' } },
       status: { conditions },
-    }) as unknown as LightspeedProposal;
+    }) as unknown as LightspeedAgenticRun;
 
   it('returns Pending when no conditions', () => {
     expect(derivePhase(undefined)).toBe('Pending');
-    expect(derivePhase(makeProposal([]))).toBe('Pending');
+    expect(derivePhase(makeAgenticRun([]))).toBe('Pending');
   });
 
   it('returns Analyzing when Analyzed=False', () => {
-    expect(derivePhase(makeProposal([{ type: 'Analyzed', status: 'False' }]))).toBe('Analyzing');
+    expect(derivePhase(makeAgenticRun([{ type: 'Analyzed', status: 'False' }]))).toBe('Analyzing');
   });
 
   it('returns Failed when Analyzed=False with reason Failed', () => {
-    expect(derivePhase(makeProposal([{ type: 'Analyzed', status: 'False', reason: 'Failed' }]))).toBe('Failed');
+    expect(
+      derivePhase(makeAgenticRun([{ type: 'Analyzed', status: 'False', reason: 'Failed' }])),
+    ).toBe('Failed');
   });
 
   it('returns Analysed when analysis-only (execution/verification skipped)', () => {
-    expect(derivePhase(makeProposal([
-      { type: 'Analyzed', status: 'True' },
-      { type: 'Executed', status: 'True', reason: 'Skipped' },
-      { type: 'Verified', status: 'True', reason: 'Skipped' },
-    ]))).toBe('Analysed');
+    expect(
+      derivePhase(
+        makeAgenticRun([
+          { type: 'Analyzed', status: 'True' },
+          { type: 'Executed', status: 'True', reason: 'Skipped' },
+          { type: 'Verified', status: 'True', reason: 'Skipped' },
+        ]),
+      ),
+    ).toBe('Analysed');
   });
 
   it('returns Escalated when Escalated=True', () => {
-    expect(derivePhase(makeProposal([{ type: 'Escalated', status: 'True' }]))).toBe('Escalated');
+    expect(derivePhase(makeAgenticRun([{ type: 'Escalated', status: 'True' }]))).toBe('Escalated');
   });
 });
 

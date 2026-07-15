@@ -1,28 +1,28 @@
 import { useK8sWatchResource } from '@openshift-console/dynamic-plugin-sdk';
 import {
-  LightspeedProposal,
-  LightspeedProposalApproval,
+  LightspeedAgenticRun,
+  LightspeedAgenticRunApproval,
   LightspeedApprovalPolicy,
   LightspeedAnalysisResult,
-  LightspeedProposalGVK,
-  ProposalApprovalGVK,
+  LightspeedAgenticRunGVK,
+  AgenticRunApprovalGVK,
   ApprovalPolicyGVK,
   AnalysisResultGVK,
-} from '../models/proposal';
+} from '../models/agenticrun';
 import { LIGHTSPEED_NAMESPACE } from '../utils/constants';
 
-export const useUpdateProposals = () => {
-  return useK8sWatchResource<LightspeedProposal[]>({
-    groupVersionKind: LightspeedProposalGVK,
+export const useAgenticRuns = () => {
+  return useK8sWatchResource<LightspeedAgenticRun[]>({
+    groupVersionKind: LightspeedAgenticRunGVK,
     isList: true,
     namespaced: true,
     namespace: LIGHTSPEED_NAMESPACE,
   });
 };
 
-export const useProposalApprovals = () => {
-  return useK8sWatchResource<LightspeedProposalApproval[]>({
-    groupVersionKind: ProposalApprovalGVK,
+export const useAgenticRunApprovals = () => {
+  return useK8sWatchResource<LightspeedAgenticRunApproval[]>({
+    groupVersionKind: AgenticRunApprovalGVK,
     isList: true,
     namespaced: true,
     namespace: LIGHTSPEED_NAMESPACE,
