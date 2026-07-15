@@ -62,7 +62,7 @@ describe('getAnalysisDataFromResult', () => {
   });
 
   it('returns empty components when result has no options', () => {
-    const result = { spec: { proposalName: 'test' }, status: {} } as LightspeedAnalysisResult;
+    const result = { spec: { agenticRunName: 'test' }, status: {} } as LightspeedAnalysisResult;
     const data = getAnalysisDataFromResult(result);
     expect(data.components).toEqual([]);
   });
@@ -73,7 +73,7 @@ describe('getAnalysisDataFromResult', () => {
       { type: 'ota_finding', severity: 'info', check: 'test', detail: 'ok' },
     ];
     const result = {
-      spec: { proposalName: 'test' },
+      spec: { agenticRunName: 'test' },
       status: { options: [{ title: 'Option', components: { analysisData: components } }] },
     } as unknown as LightspeedAnalysisResult;
     const data = getAnalysisDataFromResult(result);
@@ -84,7 +84,7 @@ describe('getAnalysisDataFromResult', () => {
   it('extracts legacy flat object from analysisData', () => {
     const legacyData = { decision: 'recommend', summary: 'All good' };
     const result = {
-      spec: { proposalName: 'test' },
+      spec: { agenticRunName: 'test' },
       status: { options: [{ title: 'Option', components: { analysisData: legacyData } }] },
     } as unknown as LightspeedAnalysisResult;
     const data = getAnalysisDataFromResult(result);

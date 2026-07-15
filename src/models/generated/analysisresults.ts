@@ -2,8 +2,8 @@
 // Regenerate with: make generate-types
 
 export type AnalysisResultSpec = {
-  /** proposalName is the name of the parent Proposal in the same namespace. */
-  proposalName: string;
+  /** agenticRunName is the name of the parent AgenticRun in the same namespace. */
+  agenticRunName: string;
 };
 
 export type AnalysisResultStatus = {
