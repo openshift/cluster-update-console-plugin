@@ -187,7 +187,7 @@ export const getPhaseDisplay = (phase?: AgenticRunPhase | string): PhaseDisplay 
 };
 
 export const getRiskColor = (risk?: string): 'green' | 'orange' | 'red' | 'grey' => {
-  switch (risk) {
+  switch (risk?.toLowerCase()) {
     case 'low':
       return 'green';
     case 'medium':
@@ -220,10 +220,17 @@ export const getAnalysisDataFromResult = (result?: LightspeedAnalysisResult): An
     return { components: [] };
   }
   const option = result.status.options[0];
-  const raw = (option.components as AnalysisDataPayload)?.analysisData;
+  const comp = option.components;
 
-  // analysisData can be an array of typed components (PR 1379 format)
-  // or a flat object (legacy format)
+  // components is an array of typed adapter components directly
+  if (Array.isArray(comp)) {
+    return {
+      components: comp as AdapterComponent[],
+    };
+  }
+
+  // components is an object — check for nested analysisData key
+  const raw = (comp as AnalysisDataPayload)?.analysisData;
   if (Array.isArray(raw)) {
     return {
       components: raw as AdapterComponent[],
