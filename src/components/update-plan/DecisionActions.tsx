@@ -140,7 +140,7 @@ const DecisionActions: React.FC<DecisionActionsProps> = ({ agenticRun, clusterVe
       <CardBody>
         <Content component="p" className="cluster-update-plugin__decision-description">
           {t(
-            'Plan ready — approving will start the cluster upgrade. You will be redirected to the cluster settings page to monitor progress.',
+            "Plan ready — Clicking 'Start update' will begin the cluster update and redirect you to the cluster settings page to monitor progress. OCP updates are irreversible.",
           )}
         </Content>
         <Flex gap={{ default: 'gapLg' }} className="cluster-update-plugin__decision-action-group">
@@ -151,7 +151,7 @@ const DecisionActions: React.FC<DecisionActionsProps> = ({ agenticRun, clusterVe
             isDisabled={inProgress || !approval}
             isLoading={inProgress && confirmingApprove}
           >
-            {confirmingApprove ? t('Confirm approve & upgrade') : t('Approve & upgrade')}
+            {confirmingApprove ? t('Confirm and start update') : t('Start update')}
           </Button>
           <Button variant="secondary" isDisabled>
             {t('Schedule for later')}
