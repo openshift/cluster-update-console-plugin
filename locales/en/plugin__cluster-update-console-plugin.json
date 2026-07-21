@@ -55,6 +55,7 @@
   "Status": "Status",
   "Target Version": "Target Version",
   "Target version {{version}} not found in available updates": "Target version {{version}} not found in available updates",
+  "Tech preview": "Tech preview",
   "The Lightspeed AgenticRun CRD is not installed on this cluster. AI-driven update planning features are disabled.": "The Lightspeed AgenticRun CRD is not installed on this cluster. AI-driven update planning features are disabled.",
   "There are no update plans currently in progress.": "There are no update plans currently in progress.",
   "This cluster has no recorded update history.": "This cluster has no recorded update history.",

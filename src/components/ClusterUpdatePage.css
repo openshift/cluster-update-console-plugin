@@ -10,3 +10,8 @@
 .cluster-update-plugin__tabs {
   padding-block-start: 0;
 }
+
+.cluster-update-plugin__preview-badge.pf-v6-c-label {
+  --pf-v6-c-label--BackgroundColor: #d93f00;
+  --pf-v6-c-label--Color: var(--pf-t--color--white);
+}
