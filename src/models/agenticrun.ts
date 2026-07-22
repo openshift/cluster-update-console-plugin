@@ -102,6 +102,10 @@ export const ACTIVE_AGENTIC_RUN_PHASES = new Set<AgenticRunPhase>([
   'Analyzing',
   'Analysed',
   'Proposed',
+  'Approved',
+  'Executing',
+  'AwaitingSync',
+  'Verifying',
   'Completed',
   'Escalated',
   'Failed',
@@ -141,6 +145,9 @@ export const derivePhase = (agenticRun?: LightspeedAgenticRun): AgenticRunPhase 
 
   // Check if analysis step has any results (in progress)
   if (agenticRun?.status?.steps?.analysis?.results?.length) return 'Analyzing';
+
+  // Sandbox allocated or analysis step present means analysis has started
+  if (agenticRun?.status?.steps?.analysis?.sandbox?.claimName) return 'Analyzing';
 
   // If any condition is Unknown, the operator is still reconciling
   if (conditions.some((c: K8sResourceCondition) => c.status === 'Unknown')) return 'Pending';
@@ -185,6 +192,24 @@ export const getPhaseDisplay = (phase?: AgenticRunPhase | string): PhaseDisplay 
       return { color: 'grey', label: phase || 'Unknown' };
   }
 };
+
+export type DecisionDisplayEntry = {
+  label: string;
+  color: 'green' | 'orange' | 'red' | 'purple';
+};
+
+export const DECISION_DISPLAY: Record<string, DecisionDisplayEntry> = {
+  recommend: { label: 'RECOMMEND', color: 'green' },
+  caution: { label: 'CAUTION', color: 'orange' },
+  block: { label: 'NOT RECOMMENDED', color: 'red' },
+  escalate: { label: 'ESCALATE', color: 'purple' },
+};
+
+export const getDecisionDisplay = (decision?: string): DecisionDisplayEntry =>
+  DECISION_DISPLAY[decision?.toLowerCase() ?? ''] ?? {
+    label: (decision ?? '').toUpperCase(),
+    color: 'purple' as const,
+  };
 
 export const getRiskColor = (risk?: string): 'green' | 'orange' | 'red' | 'grey' => {
   switch (risk?.toLowerCase()) {
