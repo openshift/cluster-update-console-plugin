@@ -7,6 +7,8 @@ import {
   CardBody,
   CardTitle,
   Content,
+  EmptyState,
+  EmptyStateBody,
   ExpandableSection,
   Flex,
   FlexItem,
@@ -17,7 +19,7 @@ import {
   Stack,
   StackItem,
 } from '@patternfly/react-core';
-import { RedoIcon, SearchIcon } from '@patternfly/react-icons';
+import { CubesIcon, RedoIcon, SearchIcon } from '@patternfly/react-icons';
 import { k8sPatch } from '@openshift-console/dynamic-plugin-sdk';
 import { ClusterVersion } from '../../models/clusterversion';
 import { Link } from 'react-router';
@@ -210,15 +212,13 @@ const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ agenticRuns }) => {
 
   if (agenticRuns.length === 0) {
     return (
-      <Card>
-        <CardBody>
-          <Content component="p">
-            {t(
-              'No update plans available. Update plans are created automatically when the cluster-version-operator detects available update paths.',
-            )}
-          </Content>
-        </CardBody>
-      </Card>
+      <EmptyState titleText={t('No update plans available')} headingLevel="h2" icon={CubesIcon}>
+        <EmptyStateBody>
+          {t(
+            'Update plans are created automatically when the cluster-version-operator detects available update paths.',
+          )}
+        </EmptyStateBody>
+      </EmptyState>
     );
   }
 
