@@ -4,6 +4,9 @@ import { DocumentTitle } from '@openshift-console/dynamic-plugin-sdk';
 import {
   Alert,
   Content,
+  Flex,
+  FlexItem,
+  Label,
   PageSection,
   Spinner,
   Tab,
@@ -51,7 +54,14 @@ export default function ClusterUpdatePage() {
     <>
       <DocumentTitle>{pageTitle}</DocumentTitle>
       <PageSection hasBodyWrapper={false} className="cluster-update-plugin__header">
-        <Title headingLevel="h1">{pageTitle}</Title>
+        <Flex alignItems={{ default: 'alignItemsCenter' }} spaceItems={{ default: 'spaceItemsSm' }}>
+          <FlexItem>
+            <Title headingLevel="h1">{pageTitle}</Title>
+          </FlexItem>
+          <FlexItem>
+            <Label className="cluster-update-plugin__preview-badge">{t('Tech preview')}</Label>
+          </FlexItem>
+        </Flex>
         <Content component="p" className="cluster-update-plugin__description">
           {t(
             'Review available versions, assess operator compatibility, and plan how this cluster version is newer OpenShift releases. Use Updates plan to prepare or start an update, Active update plans for in-flight work, and Update history for completed ones.',

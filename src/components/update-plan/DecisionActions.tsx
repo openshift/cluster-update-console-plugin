@@ -10,6 +10,7 @@ import {
   CardTitle,
   Content,
   Flex,
+  FlexItem,
   Label,
 } from '@patternfly/react-core';
 import { CheckIcon } from '@patternfly/react-icons';
@@ -143,27 +144,37 @@ const DecisionActions: React.FC<DecisionActionsProps> = ({ agenticRun, clusterVe
             'Plan ready — approving will start the cluster upgrade. You will be redirected to the cluster settings page to monitor progress.',
           )}
         </Content>
-        <Flex gap={{ default: 'gapLg' }} className="cluster-update-plugin__decision-action-group">
-          <Button
-            variant="primary"
-            icon={<CheckIcon />}
-            onClick={handleApproveClick}
-            isDisabled={inProgress || !approval}
-            isLoading={inProgress && confirmingApprove}
-          >
-            {confirmingApprove ? t('Confirm approve & upgrade') : t('Approve & upgrade')}
-          </Button>
-          <Button variant="secondary" isDisabled>
-            {t('Schedule for later')}
-          </Button>
-          <Button
-            variant="danger"
-            onClick={handleDenyClick}
-            isDisabled={inProgress || !approval}
-            isLoading={inProgress && confirmingDeny}
-          >
-            {confirmingDeny ? t('Confirm reject') : t('Reject plan')}
-          </Button>
+        <Flex
+          gap={{ default: 'gapLg' }}
+          alignItems={{ default: 'alignItemsCenter' }}
+          className="cluster-update-plugin__decision-action-group"
+        >
+          <FlexItem>
+            <Button
+              variant="primary"
+              icon={<CheckIcon />}
+              onClick={handleApproveClick}
+              isDisabled={inProgress || !approval}
+              isLoading={inProgress && confirmingApprove}
+            >
+              {confirmingApprove ? t('Confirm approve & upgrade') : t('Approve & upgrade')}
+            </Button>
+          </FlexItem>
+          <FlexItem>
+            <Button variant="secondary" isDisabled>
+              {t('Schedule for later')}
+            </Button>
+          </FlexItem>
+          <FlexItem>
+            <Button
+              variant="danger"
+              onClick={handleDenyClick}
+              isDisabled={inProgress || !approval}
+              isLoading={inProgress && confirmingDeny}
+            >
+              {confirmingDeny ? t('Confirm reject') : t('Reject plan')}
+            </Button>
+          </FlexItem>
         </Flex>
         {displayError && (
           <Alert
