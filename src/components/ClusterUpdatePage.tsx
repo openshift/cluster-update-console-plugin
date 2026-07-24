@@ -23,7 +23,6 @@ import { LightspeedAgenticRun, derivePhase } from '../models/agenticrun';
 import { ClusterVersion } from '../models/clusterversion';
 import UpdatePlanTab from './update-plan/UpdatePlanTab';
 import ActivePlansTab from './active-plans/ActivePlansTab';
-import UpdateHistoryTab from './update-history/UpdateHistoryTab';
 import './ClusterUpdatePage.css';
 
 export default function ClusterUpdatePage() {
@@ -64,7 +63,7 @@ export default function ClusterUpdatePage() {
         </Flex>
         <Content component="p" className="cluster-update-plugin__description">
           {t(
-            'Review available versions, assess operator compatibility, and plan how this cluster version is newer OpenShift releases. Use Updates plan to prepare or start an update, Active update plans for in-flight work, and Update history for completed ones.',
+            'Review available versions, assess operator compatibility, and plan your update to newer OpenShift releases. Use Updates plan to prepare or start an update and Active update plans for in-flight work.',
           )}
         </Content>
       </PageSection>
@@ -98,28 +97,17 @@ export default function ClusterUpdatePage() {
             <Tab eventKey={0} title={<TabTitleText>{t('Updates plan')}</TabTitleText>}>
               <TabContent id="updates-plan-tab">
                 <TabContentBody>
-                  {activeTab === 0 && (
-                    <UpdatePlanTab
-                      clusterVersion={clusterVersion as ClusterVersion}
-                      agenticRuns={agenticRuns}
-                    />
-                  )}
+                  <UpdatePlanTab
+                    clusterVersion={clusterVersion as ClusterVersion}
+                    agenticRuns={agenticRuns}
+                  />
                 </TabContentBody>
               </TabContent>
             </Tab>
             <Tab eventKey={1} title={<TabTitleText>{t('Active update plans')}</TabTitleText>}>
               <TabContent id="active-plans-tab">
                 <TabContentBody>
-                  {activeTab === 1 && <ActivePlansTab activePlans={activePlans} />}
-                </TabContentBody>
-              </TabContent>
-            </Tab>
-            <Tab eventKey={2} title={<TabTitleText>{t('Update history')}</TabTitleText>}>
-              <TabContent id="update-history-tab">
-                <TabContentBody>
-                  {activeTab === 2 && (
-                    <UpdateHistoryTab clusterVersion={clusterVersion as ClusterVersion} />
-                  )}
+                  <ActivePlansTab activePlans={activePlans} />
                 </TabContentBody>
               </TabContent>
             </Tab>

@@ -24,19 +24,13 @@ import {
   getFindings,
   sortFindings,
   getOlmOperatorStatus,
+  getDecisionDisplay,
   SEVERITY_LABELS,
 } from '../../models/agenticrun';
 import { I18N_NAMESPACE } from '../../utils/constants';
 
 type AnalysisResultViewProps = {
   analysisData: AnalysisData;
-};
-
-const decisionColors: Record<string, 'green' | 'orange' | 'red' | 'purple'> = {
-  recommend: 'green',
-  caution: 'orange',
-  block: 'red',
-  escalate: 'purple',
 };
 
 const checkStatusIcon = (status: string) => {
@@ -101,11 +95,11 @@ const AnalysisResultView: React.FC<AnalysisResultViewProps> = ({ analysisData })
             <CardTitle>
               {t('AI Assessment')}
               <Label
-                color={decisionColors[readinessSummary.decision] ?? 'grey'}
+                color={getDecisionDisplay(readinessSummary.decision).color}
                 isCompact
                 style={{ marginLeft: '12px' }}
               >
-                {readinessSummary.decision.toUpperCase()}
+                {getDecisionDisplay(readinessSummary.decision).label}
               </Label>
             </CardTitle>
           </Card>
@@ -249,11 +243,11 @@ const AnalysisResultView: React.FC<AnalysisResultViewProps> = ({ analysisData })
             {t('AI Assessment')}
             {decision && (
               <Label
-                color={decisionColors[decision] ?? 'grey'}
+                color={getDecisionDisplay(decision).color}
                 isCompact
                 style={{ marginLeft: '12px' }}
               >
-                {decision.toUpperCase()}
+                {getDecisionDisplay(decision).label}
               </Label>
             )}
           </CardTitle>

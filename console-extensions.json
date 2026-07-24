@@ -1,9 +1,23 @@
 [
   {
+    "type": "console.flag/model",
+    "properties": {
+      "model": {
+        "group": "agentic.openshift.io",
+        "version": "v1alpha1",
+        "kind": "AgenticRun"
+      },
+      "flag": "AGENTIC_RUN"
+    }
+  },
+  {
     "type": "console.page/route",
     "properties": {
       "path": "/administration/cluster-update",
       "component": { "$codeRef": "ClusterUpdatePage" }
+    },
+    "flags": {
+      "required": ["AGENTIC_RUN"]
     }
   },
   {
@@ -14,6 +28,9 @@
       "href": "/administration/cluster-update",
       "perspective": "admin",
       "section": "administration"
+    },
+    "flags": {
+      "required": ["AGENTIC_RUN"]
     }
   }
 ]
