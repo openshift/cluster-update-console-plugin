@@ -410,13 +410,35 @@ const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ agenticRuns }) => {
                       </Alert>
                     </StackItem>
                   ) : (
-                    <StackItem>
-                      {resultData.components.length > 0 || resultData.analysisData ? (
-                        <AnalysisResultView analysisData={resultData} />
-                      ) : (
-                        <Content component="p">{t('Analysis result not yet available.')}</Content>
+                    <>
+                      <StackItem>
+                        {resultData.options.length > 0 ||
+                        resultData.components.length > 0 ||
+                        resultData.analysisData ? (
+                          <AnalysisResultView analysisData={resultData} />
+                        ) : (
+                          <Content component="p">{t('Analysis result not yet available.')}</Content>
+                        )}
+                      </StackItem>
+                      {result && !hasRemediationPlan(result) && pPhase === 'Proposed' && (
+                        <StackItem>
+                          <Alert variant="info" isInline title={t('No remediation plan available')}>
+                            {t(
+                              'Analysis indicates this upgrade is not feasible. Review diagnosis for details.',
+                            )}
+                          </Alert>
+                        </StackItem>
                       )}
-                    </StackItem>
+                      {result && hasRemediationPlan(result) && pPhase === 'Proposed' && (
+                        <StackItem>
+                          <DecisionActions
+                            agenticRun={agenticRun}
+                            clusterVersion={clusterVersion}
+                            analysisData={resultData}
+                          />
+                        </StackItem>
+                      )}
+                    </>
                   )}
                 </Stack>
               </ExpandableSection>
