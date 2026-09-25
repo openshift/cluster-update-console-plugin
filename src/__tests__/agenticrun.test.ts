@@ -7,6 +7,9 @@ import {
   getAnalysisDataFromResult,
   sortFindings,
   derivePhase,
+  hasDefaultModeData,
+  hasRemediationPlan,
+  isMinimalMode,
   COMPONENT_TYPES,
   AdapterComponent,
   LightspeedAgenticRun,
@@ -14,6 +17,7 @@ import {
   OtaReadinessSummary,
   OtaFinding,
   OtaOlmOperatorStatus,
+  RemediationOption,
 } from '../models/agenticrun';
 
 describe('getPhaseDisplay', () => {
@@ -210,5 +214,189 @@ describe('sortFindings', () => {
 
   it('returns empty array for empty input', () => {
     expect(sortFindings([])).toEqual([]);
+  });
+});
+
+describe('Default Mode Helpers', () => {
+  describe('hasDefaultModeData', () => {
+    it('returns true when option has diagnosis', () => {
+      const option: RemediationOption = {
+        title: 'Fix memory issue',
+        diagnosis: {
+          confidence: 'High',
+          rootCause: 'OOMKilled pod',
+          summary: 'Pod is running out of memory',
+        },
+      };
+      expect(hasDefaultModeData(option)).toBe(true);
+    });
+
+    it('returns true when option has proposal', () => {
+      const option: RemediationOption = {
+        title: 'Fix memory issue',
+        proposal: {
+          actions: [{ type: 'patch', description: 'Increase memory limit' }],
+          description: 'Increase memory',
+          estimatedImpact: 'Low impact',
+          risk: 'Low',
+        },
+      };
+      expect(hasDefaultModeData(option)).toBe(true);
+    });
+
+    it('returns true when option has both diagnosis and proposal', () => {
+      const option: RemediationOption = {
+        title: 'Fix memory issue',
+        diagnosis: {
+          confidence: 'High',
+          rootCause: 'OOMKilled pod',
+          summary: 'Pod is running out of memory',
+        },
+        proposal: {
+          actions: [{ type: 'patch', description: 'Increase memory limit' }],
+          description: 'Increase memory',
+          estimatedImpact: 'Low impact',
+          risk: 'Low',
+        },
+      };
+      expect(hasDefaultModeData(option)).toBe(true);
+    });
+
+    it('returns false when option has only components (Minimal mode)', () => {
+      const option: RemediationOption = {
+        title: 'Analysis',
+        components: {
+          analysisData: [{ type: 'ota_readiness_summary', decision: 'recommend', checks: [] }],
+        },
+      };
+      expect(hasDefaultModeData(option)).toBe(false);
+    });
+
+    it('returns false for undefined option', () => {
+      expect(hasDefaultModeData(undefined)).toBe(false);
+    });
+  });
+
+  describe('hasRemediationPlan', () => {
+    it('returns true when result has options with proposal', () => {
+      const result: LightspeedAnalysisResult = {
+        spec: { agenticRunName: 'test' },
+        status: {
+          options: [
+            {
+              title: 'Fix issue',
+              proposal: {
+                actions: [{ type: 'patch', description: 'Fix it' }],
+                description: 'Fix',
+                estimatedImpact: 'Low',
+                risk: 'Low',
+              },
+            },
+          ],
+        },
+      } as unknown as LightspeedAnalysisResult;
+      expect(hasRemediationPlan(result)).toBe(true);
+    });
+
+    it('returns false when result has options without proposal', () => {
+      const result: LightspeedAnalysisResult = {
+        spec: { agenticRunName: 'test' },
+        status: {
+          options: [
+            {
+              title: 'Analysis only',
+              diagnosis: {
+                confidence: 'High',
+                rootCause: 'Issue',
+                summary: 'No fix available',
+              },
+            },
+          ],
+        },
+      } as unknown as LightspeedAnalysisResult;
+      expect(hasRemediationPlan(result)).toBe(false);
+    });
+
+    it('returns false when result has no options', () => {
+      const result: LightspeedAnalysisResult = {
+        spec: { agenticRunName: 'test' },
+        status: {},
+      } as LightspeedAnalysisResult;
+      expect(hasRemediationPlan(result)).toBe(false);
+    });
+
+    it('returns false for undefined result', () => {
+      expect(hasRemediationPlan(undefined)).toBe(false);
+    });
+  });
+
+  describe('isMinimalMode', () => {
+    it('returns true when analysisData has only components (no Default mode data)', () => {
+      const data = {
+        options: [
+          {
+            title: 'Analysis',
+            components: { analysisData: [{ type: 'ota_readiness_summary' }] },
+          },
+        ],
+        components: [{ type: 'ota_readiness_summary', decision: 'recommend', checks: [] }],
+      };
+      expect(isMinimalMode(data)).toBe(true);
+    });
+
+    it('returns false when options have Default mode data', () => {
+      const data = {
+        options: [
+          {
+            title: 'Fix',
+            diagnosis: { confidence: 'High' as const, rootCause: 'Issue', summary: 'Summary' },
+          },
+        ],
+        components: [],
+      };
+      expect(isMinimalMode(data)).toBe(false);
+    });
+
+    it('returns false when there are no components', () => {
+      const data = {
+        options: [],
+        components: [],
+      };
+      expect(isMinimalMode(data)).toBe(false);
+    });
+
+    it('returns false for undefined analysisData', () => {
+      expect(isMinimalMode(undefined)).toBe(false);
+    });
+  });
+
+  describe('getAnalysisDataFromResult with options', () => {
+    it('returns options array from result', () => {
+      const result: LightspeedAnalysisResult = {
+        spec: { agenticRunName: 'test' },
+        status: {
+          options: [
+            {
+              title: 'Option 1',
+              diagnosis: { confidence: 'High' as const, rootCause: 'Issue', summary: 'Fix it' },
+            },
+            { title: 'Option 2', summary: 'Alternative' },
+          ],
+        },
+      } as unknown as LightspeedAnalysisResult;
+      const data = getAnalysisDataFromResult(result);
+      expect(data.options).toHaveLength(2);
+      expect(data.options[0].title).toBe('Option 1');
+      expect(data.options[1].title).toBe('Option 2');
+    });
+
+    it('returns empty options array when result has no options', () => {
+      const result: LightspeedAnalysisResult = {
+        spec: { agenticRunName: 'test' },
+        status: {},
+      } as LightspeedAnalysisResult;
+      const data = getAnalysisDataFromResult(result);
+      expect(data.options).toEqual([]);
+    });
   });
 });
