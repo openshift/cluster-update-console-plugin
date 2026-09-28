@@ -32,6 +32,7 @@ import {
   getAnalysisDataFromResult,
   getDecisionDisplay,
   getPhaseDisplay,
+  hasRemediationPlan,
 } from '../../models/agenticrun';
 import { I18N_NAMESPACE, LABELS } from '../../utils/constants';
 import { compareSemVer, unsanitizeVersion } from '../../utils/version';
@@ -40,8 +41,7 @@ import { useAgenticRunApprovals, useAnalysisResults } from '../../hooks/useAgent
 import PhaseLabel from '../shared/PhaseLabel';
 import PlanHeader from './PlanHeader';
 import AnalysisResultView from './AnalysisResultView';
-// TODO: Re-enable DecisionActions post-TP
-// import DecisionActions from './DecisionActions';
+import DecisionActions from './DecisionActions';
 
 type ReanalyseButtonProps = {
   agenticRun: LightspeedAgenticRun;
@@ -112,7 +112,7 @@ type UpdatePlanTabProps = {
   agenticRuns: LightspeedAgenticRun[];
 };
 
-const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ agenticRuns }) => {
+const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ clusterVersion, agenticRuns }) => {
   const { t } = useTranslation(I18N_NAMESPACE);
   const [selectedName, setSelectedName] = React.useState('');
   const [expandedPanels, setExpandedPanels] = React.useState<Set<string>>(new Set());
