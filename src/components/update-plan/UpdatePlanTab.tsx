@@ -15,12 +15,15 @@ import {
   FormSelect,
   FormSelectOption,
   Label,
+  Modal,
+  ModalBody,
+  ModalFooter,
   Spinner,
   Stack,
   StackItem,
 } from '@patternfly/react-core';
 import { CubesIcon, RedoIcon, SearchIcon } from '@patternfly/react-icons';
-import { k8sPatch } from '@openshift-console/dynamic-plugin-sdk';
+import { k8sDelete } from '@openshift-console/dynamic-plugin-sdk';
 import { ClusterVersion } from '../../models/clusterversion';
 import { Link } from 'react-router';
 import {
@@ -51,34 +54,28 @@ const ReanalyseButton: React.FC<ReanalyseButtonProps> = ({ agenticRun }) => {
   const { t } = useTranslation(I18N_NAMESPACE);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = React.useState(false);
 
-  const handleReanalyse = React.useCallback(
-    async (e: React.MouseEvent) => {
-      e.stopPropagation();
-      setLoading(true);
-      setError(null);
-      try {
-        const timestamp = new Date().toISOString();
-        const hasExisting = !!agenticRun.spec?.revisionFeedback;
-        await k8sPatch({
-          data: [
-            {
-              op: hasExisting ? 'replace' : 'add',
-              path: '/spec/revisionFeedback',
-              value: `Re-analyse requested at ${timestamp}`,
-            },
-          ],
-          model: LightspeedAgenticRunModel,
-          resource: agenticRun,
-        });
-      } catch (err) {
-        setError(String(err));
-      } finally {
-        setLoading(false);
-      }
-    },
-    [agenticRun],
-  );
+  const openModal = React.useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsModalOpen(true);
+  }, []);
+
+  const handleReanalyse = React.useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      await k8sDelete({
+        model: LightspeedAgenticRunModel,
+        resource: agenticRun,
+      });
+      setIsModalOpen(false);
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setLoading(false);
+    }
+  }, [agenticRun]);
 
   return (
     <>
@@ -87,22 +84,41 @@ const ReanalyseButton: React.FC<ReanalyseButtonProps> = ({ agenticRun }) => {
         icon={<RedoIcon />}
         isDisabled={loading}
         isLoading={loading}
-        onClick={handleReanalyse}
+        onClick={openModal}
         size="sm"
       >
         {t('Re-analyse')}
       </Button>
-      {error && (
-        <Alert
-          variant="danger"
-          isInline
-          isPlain
-          title={t('Re-analyse failed')}
-          style={{ marginTop: '4px' }}
-        >
-          {error}
-        </Alert>
-      )}
+      <Modal
+        variant="small"
+        isOpen={isModalOpen}
+        onClose={() => !loading && setIsModalOpen(false)}
+        aria-label={t('Confirm re-analysis')}
+      >
+        <ModalBody>
+          {t(
+            'This action will delete the current assessment. A new analysis path will be available shortly for a fresh analysis with up-to-date cluster data.',
+          )}
+          {error && (
+            <Alert
+              variant="danger"
+              isInline
+              title={t('Re-analyse failed')}
+              style={{ marginTop: '16px' }}
+            >
+              {error}
+            </Alert>
+          )}
+        </ModalBody>
+        <ModalFooter>
+          <Button variant="primary" onClick={handleReanalyse} isDisabled={loading} isLoading={loading}>
+            {t('Confirm')}
+          </Button>
+          <Button variant="link" onClick={() => setIsModalOpen(false)} isDisabled={loading}>
+            {t('Cancel')}
+          </Button>
+        </ModalFooter>
+      </Modal>
     </>
   );
 };
@@ -310,9 +326,7 @@ const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ agenticRuns }) => {
           const phaseDisplay = getPhaseDisplay(pPhase);
 
           const stepResults = agenticRun.status?.steps?.analysis?.results;
-          const resultRef = (
-            stepResults?.[stepResults.length - 1] as { name?: string }
-          )?.name;
+          const resultRef = (stepResults?.[stepResults.length - 1] as { name?: string })?.name;
           const result = resultRef
             ? analysisResults.find(
                 (r: LightspeedAnalysisResult) =>
