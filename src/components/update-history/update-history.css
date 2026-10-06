@@ -1,3 +1,15 @@
 .cluster-update-plugin__update-history {
   padding-block-start: var(--pf-t--global--spacer--md);
 }
+
+.cluster-update-plugin__table-container {
+  margin-bottom: var(--pf-t--global--spacer--lg);
+  overflow: auto;
+}
+
+.cluster-update-plugin__select-to-copy {
+  cursor: copy;
+  user-select: all;
+  -moz-user-select: all;
+  -webkit-user-select: all;
+}

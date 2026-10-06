@@ -18,6 +18,21 @@ export const ClusterVersionModel: K8sModel = {
 
 export const ClusterVersionGVK = getGroupVersionKindForModel(ClusterVersionModel);
 
+export enum ClusterVersionConditionType {
+  Available = 'Available',
+  Failing = 'Failing',
+  Progressing = 'Progressing',
+  RetrievedUpdates = 'RetrievedUpdates',
+  Invalid = 'Invalid',
+  Upgradeable = 'Upgradeable',
+  ReleaseAccepted = 'ReleaseAccepted',
+  ImplicitlyEnabledCapabilities = 'ImplicitlyEnabledCapabilities',
+}
+
+export type ClusterVersionCondition = {
+  type: keyof typeof ClusterVersionConditionType;
+} & K8sResourceCondition;
+
 export type Release = {
   version: string;
   image: string;

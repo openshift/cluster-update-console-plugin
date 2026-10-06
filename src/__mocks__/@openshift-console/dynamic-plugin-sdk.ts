@@ -13,6 +13,8 @@ export const getAPIVersionForModel = (model: { apiGroup?: string; apiVersion: st
 
 export const k8sCreate = jest.fn();
 export const k8sPatch = jest.fn();
+export const useK8sWatchResource = jest.fn(() => [undefined, false, undefined]);
+export const useAccessReview = jest.fn(() => [false, false]);
 
 export type K8sModel = {
   apiGroup?: string;
@@ -37,6 +39,12 @@ export type K8sResourceCommon = {
     creationTimestamp?: string;
   };
 };
+
+export enum K8sResourceConditionStatus {
+  True = 'True',
+  False = 'False',
+  Unknown = 'Unknown',
+}
 
 export type K8sResourceCondition = {
   type: string;

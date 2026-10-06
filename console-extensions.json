@@ -15,9 +15,6 @@
     "properties": {
       "path": "/administration/cluster-update",
       "component": { "$codeRef": "ClusterUpdatePage" }
-    },
-    "flags": {
-      "required": ["AGENTIC_RUN"]
     }
   },
   {
@@ -27,10 +24,8 @@
       "name": "%plugin__cluster-update-console-plugin~Cluster Update%",
       "href": "/administration/cluster-update",
       "perspective": "admin",
-      "section": "administration"
-    },
-    "flags": {
-      "required": ["AGENTIC_RUN"]
+      "section": "administration",
+      "insertBefore": "clustersettings"
     }
   }
 ]
