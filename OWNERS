@@ -3,16 +3,11 @@
 approvers:
   - jhadvig
   - wking
-  - DavidHurta
-  - PratikMahajan
   - hongkailiu
-  - fao89
 reviewers:
   - jhadvig
   - wking
-  - DavidHurta
   - hongkailiu
-  - fao89
 
 # This is a Red Hat extension, mapping the Jira component used for reporting OCPBUGS bugs.
 # https://redhat.atlassian.net/browse/OCPBUGS
