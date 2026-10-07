@@ -420,9 +420,11 @@ const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ agenticRuns }) => {
                   ) : pPhase === 'Failed' ? (
                     <StackItem>
                       <Alert variant="danger" isInline title={t('Analysis failed')}>
-                        {(
-                          agenticRun.status?.conditions as { type: string; message: string }[]
-                        )?.find((c) => c.type === 'Analyzed')?.message ?? t('Unknown error')}
+                        {result?.status?.failureReason ??
+                          (
+                            agenticRun.status?.conditions as { type: string; message: string }[]
+                          )?.find((c) => c.type === 'Analyzed')?.message ??
+                          t('Unknown error')}
                       </Alert>
                     </StackItem>
                   ) : (
