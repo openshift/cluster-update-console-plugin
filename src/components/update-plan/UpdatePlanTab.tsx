@@ -40,6 +40,7 @@ import { useAgenticRunApprovals, useAnalysisResults } from '../../hooks/useAgent
 import PhaseLabel from '../shared/PhaseLabel';
 import PlanHeader from './PlanHeader';
 import AnalysisResultView from './AnalysisResultView';
+import ApprovalPolicyWarningBanner from './ApprovalPolicyWarningBanner';
 // TODO: Re-enable DecisionActions post-TP
 // import DecisionActions from './DecisionActions';
 
@@ -226,6 +227,11 @@ const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ agenticRuns }) => {
 
   return (
     <Stack hasGutter>
+      {/* Approval Policy Warning Banner */}
+      <StackItem>
+        <ApprovalPolicyWarningBanner />
+      </StackItem>
+
       {/* Run selector */}
       <StackItem>
         <Card>
@@ -310,9 +316,7 @@ const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ agenticRuns }) => {
           const phaseDisplay = getPhaseDisplay(pPhase);
 
           const stepResults = agenticRun.status?.steps?.analysis?.results;
-          const resultRef = (
-            stepResults?.[stepResults.length - 1] as { name?: string }
-          )?.name;
+          const resultRef = (stepResults?.[stepResults.length - 1] as { name?: string })?.name;
           const result = resultRef
             ? analysisResults.find(
                 (r: LightspeedAnalysisResult) =>
