@@ -25,9 +25,12 @@ import {
   sortFindings,
   getOlmOperatorStatus,
   getDecisionDisplay,
+  hasDefaultModeData,
   SEVERITY_LABELS,
 } from '../../models/agenticrun';
 import { I18N_NAMESPACE } from '../../utils/constants';
+import DiagnosisCard from './DiagnosisCard';
+import RemediationPlanView from './RemediationPlanView';
 
 type AnalysisResultViewProps = {
   analysisData: AnalysisData;
@@ -78,9 +81,34 @@ const checkStatusColor = (status: string): 'green' | 'orange' | 'red' | 'blue' =
 const AnalysisResultView: React.FC<AnalysisResultViewProps> = ({ analysisData }) => {
   const { t } = useTranslation(I18N_NAMESPACE);
 
-  const { components, analysisData: legacyData } = analysisData;
+  const { options, components, analysisData: legacyData } = analysisData;
 
-  // Typed components (PR 1379 format)
+  // Check if this is Default mode (has diagnosis/proposal data)
+  const hasDefaultMode = options.some(hasDefaultModeData);
+
+  // Default mode: render diagnosis and remediation plans
+  if (hasDefaultMode) {
+    return (
+      <Stack hasGutter>
+        {options.map((option, idx) => (
+          <React.Fragment key={idx}>
+            {option.diagnosis && (
+              <StackItem>
+                <DiagnosisCard diagnosis={option.diagnosis} />
+              </StackItem>
+            )}
+            {option.proposal && (
+              <StackItem>
+                <RemediationPlanView option={option} optionIndex={idx} />
+              </StackItem>
+            )}
+          </React.Fragment>
+        ))}
+      </Stack>
+    );
+  }
+
+  // Minimal mode: typed components (readinessSummary, findings, olmStatus)
   const readinessSummary = getReadinessSummary(components);
   const findings = sortFindings(getFindings(components));
   const olmStatus = getOlmOperatorStatus(components);

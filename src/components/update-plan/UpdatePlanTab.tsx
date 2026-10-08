@@ -35,6 +35,7 @@ import {
   getAnalysisDataFromResult,
   getDecisionDisplay,
   getPhaseDisplay,
+  hasRemediationPlan,
 } from '../../models/agenticrun';
 import { I18N_NAMESPACE, LABELS } from '../../utils/constants';
 import { compareSemVer, unsanitizeVersion } from '../../utils/version';
@@ -43,8 +44,7 @@ import { useAgenticRunApprovals, useAnalysisResults } from '../../hooks/useAgent
 import PhaseLabel from '../shared/PhaseLabel';
 import PlanHeader from './PlanHeader';
 import AnalysisResultView from './AnalysisResultView';
-// TODO: Re-enable DecisionActions post-TP
-// import DecisionActions from './DecisionActions';
+import DecisionActions from './DecisionActions';
 
 type ReanalyseButtonProps = {
   agenticRun: LightspeedAgenticRun;
@@ -128,7 +128,7 @@ type UpdatePlanTabProps = {
   agenticRuns: LightspeedAgenticRun[];
 };
 
-const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ agenticRuns }) => {
+const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ clusterVersion, agenticRuns }) => {
   const { t } = useTranslation(I18N_NAMESPACE);
   const [selectedName, setSelectedName] = React.useState('');
   const [expandedPanels, setExpandedPanels] = React.useState<Set<string>>(new Set());
@@ -426,13 +426,35 @@ const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ agenticRuns }) => {
                       </Alert>
                     </StackItem>
                   ) : (
-                    <StackItem>
-                      {resultData.components.length > 0 || resultData.analysisData ? (
-                        <AnalysisResultView analysisData={resultData} />
-                      ) : (
-                        <Content component="p">{t('Analysis result not yet available.')}</Content>
+                    <>
+                      <StackItem>
+                        {resultData.options.length > 0 ||
+                        resultData.components.length > 0 ||
+                        resultData.analysisData ? (
+                          <AnalysisResultView analysisData={resultData} />
+                        ) : (
+                          <Content component="p">{t('Analysis result not yet available.')}</Content>
+                        )}
+                      </StackItem>
+                      {result && !hasRemediationPlan(result) && pPhase === 'Proposed' && (
+                        <StackItem>
+                          <Alert variant="info" isInline title={t('No remediation plan available')}>
+                            {t(
+                              'Analysis indicates this upgrade is not feasible. Review diagnosis for details.',
+                            )}
+                          </Alert>
+                        </StackItem>
                       )}
-                    </StackItem>
+                      {result && hasRemediationPlan(result) && pPhase === 'Proposed' && (
+                        <StackItem>
+                          <DecisionActions
+                            agenticRun={agenticRun}
+                            clusterVersion={clusterVersion}
+                            analysisData={resultData}
+                          />
+                        </StackItem>
+                      )}
+                    </>
                   )}
                 </Stack>
               </ExpandableSection>
