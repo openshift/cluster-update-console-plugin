@@ -7,6 +7,7 @@ import {
   getAnalysisDataFromResult,
   sortFindings,
   derivePhase,
+  getFailedStage,
   COMPONENT_TYPES,
   AdapterComponent,
   LightspeedAgenticRun,
@@ -28,6 +29,7 @@ describe('getPhaseDisplay', () => {
     expect(getPhaseDisplay('Failed')).toEqual({ color: 'red', label: 'Failed' });
     expect(getPhaseDisplay('Denied')).toEqual({ color: 'red', label: 'Denied' });
     expect(getPhaseDisplay('AwaitingSync')).toEqual({ color: 'teal', label: 'Awaiting Sync' });
+    expect(getPhaseDisplay('Escalating')).toEqual({ color: 'orange', label: 'Escalating' });
     expect(getPhaseDisplay('Escalated')).toEqual({ color: 'orangered', label: 'Escalated' });
   });
 
@@ -107,13 +109,25 @@ describe('derivePhase', () => {
     expect(derivePhase(makeAgenticRun([]))).toBe('Pending');
   });
 
-  it('returns Analyzing when Analyzed=False', () => {
-    expect(derivePhase(makeAgenticRun([{ type: 'Analyzed', status: 'False' }]))).toBe('Analyzing');
+  it('returns Analyzing when Analyzed=Unknown', () => {
+    expect(derivePhase(makeAgenticRun([{ type: 'Analyzed', status: 'Unknown' }]))).toBe(
+      'Analyzing',
+    );
+  });
+
+  it('returns Failed when Analyzed=False', () => {
+    expect(derivePhase(makeAgenticRun([{ type: 'Analyzed', status: 'False' }]))).toBe('Failed');
   });
 
   it('returns Failed when Analyzed=False with reason Failed', () => {
     expect(
       derivePhase(makeAgenticRun([{ type: 'Analyzed', status: 'False', reason: 'Failed' }])),
+    ).toBe('Failed');
+  });
+
+  it('returns Failed when Analyzed=False with reason AgentTimeout', () => {
+    expect(
+      derivePhase(makeAgenticRun([{ type: 'Analyzed', status: 'False', reason: 'AgentTimeout' }])),
     ).toBe('Failed');
   });
 
@@ -131,6 +145,174 @@ describe('derivePhase', () => {
 
   it('returns Escalated when Escalated=True', () => {
     expect(derivePhase(makeAgenticRun([{ type: 'Escalated', status: 'True' }]))).toBe('Escalated');
+  });
+
+  it('returns Denied when Denied=True', () => {
+    expect(derivePhase(makeAgenticRun([{ type: 'Denied', status: 'True' }]))).toBe('Denied');
+  });
+
+  it('returns Denied=True even when other conditions present', () => {
+    expect(
+      derivePhase(
+        makeAgenticRun([
+          { type: 'Analyzed', status: 'True' },
+          { type: 'Denied', status: 'True' },
+        ]),
+      ),
+    ).toBe('Denied');
+  });
+
+  it('returns Proposed when Analyzed=True', () => {
+    expect(derivePhase(makeAgenticRun([{ type: 'Analyzed', status: 'True' }]))).toBe('Proposed');
+  });
+
+  it('returns Approved when Approved=True', () => {
+    expect(
+      derivePhase(
+        makeAgenticRun([
+          { type: 'Analyzed', status: 'True' },
+          { type: 'Approved', status: 'True' },
+        ]),
+      ),
+    ).toBe('Approved');
+  });
+
+  it('returns Executing when Executed=Unknown', () => {
+    expect(
+      derivePhase(
+        makeAgenticRun([
+          { type: 'Analyzed', status: 'True' },
+          { type: 'Executed', status: 'Unknown' },
+        ]),
+      ),
+    ).toBe('Executing');
+  });
+
+  it('returns Failed when Executed=False', () => {
+    expect(
+      derivePhase(
+        makeAgenticRun([
+          { type: 'Analyzed', status: 'True' },
+          { type: 'Executed', status: 'False', reason: 'ExecutionError' },
+        ]),
+      ),
+    ).toBe('Failed');
+  });
+
+  it('returns AwaitingSync when Executed=True', () => {
+    expect(
+      derivePhase(
+        makeAgenticRun([
+          { type: 'Analyzed', status: 'True' },
+          { type: 'Executed', status: 'True' },
+        ]),
+      ),
+    ).toBe('AwaitingSync');
+  });
+
+  it('returns Verifying when Verified=Unknown', () => {
+    expect(
+      derivePhase(
+        makeAgenticRun([
+          { type: 'Analyzed', status: 'True' },
+          { type: 'Executed', status: 'True' },
+          { type: 'Verified', status: 'Unknown' },
+        ]),
+      ),
+    ).toBe('Verifying');
+  });
+
+  it('returns Failed when Verified=False', () => {
+    expect(
+      derivePhase(
+        makeAgenticRun([
+          { type: 'Analyzed', status: 'True' },
+          { type: 'Executed', status: 'True' },
+          { type: 'Verified', status: 'False', reason: 'VerificationFailed' },
+        ]),
+      ),
+    ).toBe('Failed');
+  });
+
+  it('returns Completed when Verified=True', () => {
+    expect(
+      derivePhase(
+        makeAgenticRun([
+          { type: 'Analyzed', status: 'True' },
+          { type: 'Executed', status: 'True' },
+          { type: 'Verified', status: 'True' },
+        ]),
+      ),
+    ).toBe('Completed');
+  });
+
+  it('returns Escalating when Escalated=Unknown', () => {
+    expect(derivePhase(makeAgenticRun([{ type: 'Escalated', status: 'Unknown' }]))).toBe(
+      'Escalating',
+    );
+  });
+
+  it('returns Escalating (not Failed) when Verified=False triggers escalation', () => {
+    expect(
+      derivePhase(
+        makeAgenticRun([
+          { type: 'Analyzed', status: 'True' },
+          { type: 'Executed', status: 'True' },
+          { type: 'Verified', status: 'False', reason: 'VerificationFailed' },
+          { type: 'Escalated', status: 'Unknown' },
+        ]),
+      ),
+    ).toBe('Escalating');
+  });
+
+  it('returns Failed when Escalated=False', () => {
+    expect(derivePhase(makeAgenticRun([{ type: 'Escalated', status: 'False' }]))).toBe('Failed');
+  });
+});
+
+describe('getFailedStage', () => {
+  const makeAgenticRun = (
+    conditions: { type: string; status: string; message?: string }[],
+  ): LightspeedAgenticRun =>
+    ({
+      spec: { request: 'test', analysis: { agent: 'default' } },
+      status: { conditions },
+    }) as unknown as LightspeedAgenticRun;
+
+  it('returns Analysis when Analyzed=False', () => {
+    const stage = getFailedStage(
+      makeAgenticRun([{ type: 'Analyzed', status: 'False', message: 'Agent timed out' }]),
+    );
+    expect(stage.label).toBe('Analysis');
+    expect(stage.message).toBe('Agent timed out');
+  });
+
+  it('returns Execution when Executed=False', () => {
+    const stage = getFailedStage(
+      makeAgenticRun([
+        { type: 'Analyzed', status: 'True' },
+        { type: 'Executed', status: 'False', message: 'Execution timed out' },
+      ]),
+    );
+    expect(stage.label).toBe('Execution');
+    expect(stage.message).toBe('Execution timed out');
+  });
+
+  it('returns Verification when Verified=False', () => {
+    const stage = getFailedStage(
+      makeAgenticRun([
+        { type: 'Analyzed', status: 'True' },
+        { type: 'Executed', status: 'True' },
+        { type: 'Verified', status: 'False', message: 'Health check failed' },
+      ]),
+    );
+    expect(stage.label).toBe('Verification');
+    expect(stage.message).toBe('Health check failed');
+  });
+
+  it('returns Unknown when no conditions', () => {
+    expect(getFailedStage(undefined).label).toBe('Unknown');
+    expect(getFailedStage(makeAgenticRun([])).label).toBe('Unknown');
   });
 });
 

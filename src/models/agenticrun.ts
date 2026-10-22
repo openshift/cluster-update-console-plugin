@@ -96,6 +96,7 @@ export type AgenticRunPhase =
   | 'Verifying'
   | 'Completed'
   | 'Failed'
+  | 'Escalating'
   | 'Escalated';
 
 export const ACTIVE_AGENTIC_RUN_PHASES = new Set<AgenticRunPhase>([
@@ -107,6 +108,7 @@ export const ACTIVE_AGENTIC_RUN_PHASES = new Set<AgenticRunPhase>([
   'AwaitingSync',
   'Verifying',
   'Completed',
+  'Escalating',
   'Escalated',
   'Failed',
 ]);
@@ -116,11 +118,18 @@ export const derivePhase = (agenticRun?: LightspeedAgenticRun): AgenticRunPhase 
   const find = (type: string) => conditions.find((c: K8sResourceCondition) => c.type === type);
 
   const escalated = find('Escalated');
-  if (escalated?.status === 'True') return 'Escalated';
-
+  const denied = find('Denied');
   const verified = find('Verified');
   const executed = find('Executed');
   const analyzed = find('Analyzed');
+
+  // Terminal states first
+  if (escalated?.status === 'True') return 'Escalated';
+  if (denied?.status === 'True') return 'Denied';
+
+  // Escalation in-progress (Verified=False triggers Escalated=Unknown)
+  if (escalated?.status === 'Unknown') return 'Escalating';
+  if (escalated?.status === 'False') return 'Failed';
 
   // Analysis-only runs: execution and verification are Skipped
   const executionSkipped = executed?.reason === 'Skipped';
@@ -129,30 +138,44 @@ export const derivePhase = (agenticRun?: LightspeedAgenticRun): AgenticRunPhase 
     return 'Analysed';
   }
 
+  // Lifecycle in reverse order: True=done, Unknown=in-progress, False=failed
   if (verified?.status === 'True') return 'Completed';
-  if (verified?.status === 'False') return 'Verifying';
+  if (verified?.status === 'Unknown') return 'Verifying';
+  if (verified?.status === 'False') return 'Failed';
 
   if (executed?.status === 'True') return 'AwaitingSync';
-  if (executed?.status === 'False') return 'Executing';
+  if (executed?.status === 'Unknown') return 'Executing';
+  if (executed?.status === 'False') return 'Failed';
 
   const approved = find('Approved');
   if (approved?.status === 'True') return 'Approved';
   if (approved?.status === 'False') return 'Denied';
 
   if (analyzed?.status === 'True') return 'Proposed';
-  if (analyzed?.status === 'False' && analyzed?.reason === 'Failed') return 'Failed';
-  if (analyzed?.status === 'False') return 'Analyzing';
-
-  // Check if analysis step has any results (in progress)
-  if (agenticRun?.status?.steps?.analysis?.results?.length) return 'Analyzing';
-
-  // Sandbox allocated or analysis step present means analysis has started
-  if (agenticRun?.status?.steps?.analysis?.sandbox?.claimName) return 'Analyzing';
-
-  // If any condition is Unknown, the operator is still reconciling
-  if (conditions.some((c: K8sResourceCondition) => c.status === 'Unknown')) return 'Pending';
+  if (analyzed?.status === 'Unknown') return 'Analyzing';
+  if (analyzed?.status === 'False') return 'Failed';
 
   return 'Pending';
+};
+
+const STAGE_LABELS: Record<string, string> = {
+  Analyzed: 'Analysis',
+  Executed: 'Execution',
+  Verified: 'Verification',
+  Escalated: 'Escalation',
+};
+
+export const getFailedStage = (
+  agenticRun?: LightspeedAgenticRun,
+): { label: string; message?: string } => {
+  const conditions = agenticRun?.status?.conditions ?? [];
+  const failed = conditions.find(
+    (c: K8sResourceCondition) => c.status === 'False' && STAGE_LABELS[c.type],
+  );
+  return {
+    label: failed ? STAGE_LABELS[failed.type] : 'Unknown',
+    message: (failed as { message?: string })?.message,
+  };
 };
 
 // --- Phase display ---
@@ -186,6 +209,8 @@ export const getPhaseDisplay = (phase?: AgenticRunPhase | string): PhaseDisplay 
       return { color: 'red', label: 'Denied' };
     case 'AwaitingSync':
       return { color: 'teal', label: 'Awaiting Sync' };
+    case 'Escalating':
+      return { color: 'orange', label: 'Escalating' };
     case 'Escalated':
       return { color: 'orangered', label: 'Escalated' };
     default:
