@@ -22,7 +22,13 @@ import {
   Stack,
   StackItem,
 } from '@patternfly/react-core';
-import { CubesIcon, RedoIcon, SearchIcon } from '@patternfly/react-icons';
+import {
+  CheckCircleIcon,
+  CubesIcon,
+  ExclamationCircleIcon,
+  RedoIcon,
+  SearchIcon,
+} from '@patternfly/react-icons';
 import { k8sDelete } from '@openshift-console/dynamic-plugin-sdk';
 import { ClusterVersion } from '../../models/clusterversion';
 import { Link } from 'react-router';
@@ -36,13 +42,14 @@ import {
   getDecisionDisplay,
   getPhaseDisplay,
 } from '../../models/agenticrun';
-import { I18N_NAMESPACE, LABELS } from '../../utils/constants';
+import { I18N_NAMESPACE, LABELS, LIGHTSPEED_NAMESPACE } from '../../utils/constants';
 import { compareSemVer, unsanitizeVersion } from '../../utils/version';
 import { useApprovalActions } from '../../hooks/useApprovalActions';
 import { useAgenticRunApprovals, useAnalysisResults } from '../../hooks/useAgenticRuns';
 import PhaseLabel from '../shared/PhaseLabel';
 import PlanHeader from './PlanHeader';
 import AnalysisResultView from './AnalysisResultView';
+import { SandboxLogViewer } from '../shared/SandboxLogViewer';
 // TODO: Re-enable DecisionActions post-TP
 // import DecisionActions from './DecisionActions';
 
@@ -404,7 +411,7 @@ const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ agenticRuns }) => {
                                       })}
                                       {' — '}
                                       <Link
-                                        to={`/k8s/ns/${agenticRun.status.steps.analysis.sandbox.namespace ?? 'openshift-lightspeed'}/pods/${agenticRun.status.steps.analysis.sandbox.claimName}/logs`}
+                                        to={`/k8s/ns/${agenticRun.status.steps.analysis.sandbox.namespace ?? LIGHTSPEED_NAMESPACE}/pods/${agenticRun.status.steps.analysis.sandbox.claimName}/logs`}
                                       >
                                         {t('View pod logs')}
                                       </Link>
@@ -417,14 +424,126 @@ const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ agenticRuns }) => {
                         </CardBody>
                       </Card>
                     </StackItem>
+                  ) : pPhase === 'Executing' ? (
+                    <>
+                      <StackItem>
+                        <Card>
+                          <CardBody>
+                            <Flex
+                              alignItems={{ default: 'alignItemsCenter' }}
+                              gap={{ default: 'gapMd' }}
+                            >
+                              <FlexItem>
+                                <Spinner size="lg" aria-label={t('Executing')} />
+                              </FlexItem>
+                              <FlexItem>
+                                <Stack>
+                                  <StackItem>
+                                    <strong>
+                                      {agenticRun.status?.steps?.execution?.sandbox?.claimName
+                                        ? t('AI agent is executing the update plan...')
+                                        : t('Starting execution — waiting for agent sandbox...')}
+                                    </strong>
+                                  </StackItem>
+                                  {agenticRun.status?.steps?.execution?.sandbox?.claimName && (
+                                    <StackItem>
+                                      <Content component="small">
+                                        {t('Sandbox: {{name}}', {
+                                          name: agenticRun.status.steps.execution.sandbox.claimName,
+                                        })}
+                                      </Content>
+                                    </StackItem>
+                                  )}
+                                </Stack>
+                              </FlexItem>
+                            </Flex>
+                          </CardBody>
+                        </Card>
+                      </StackItem>
+                      {agenticRun.status?.steps?.execution?.sandbox?.claimName && (
+                        <StackItem>
+                          <SandboxLogViewer
+                            title={t('Execution')}
+                            sandbox={{
+                              podName: agenticRun.status.steps.execution.sandbox.claimName,
+                              namespace:
+                                agenticRun.status.steps.execution.sandbox.namespace ??
+                                LIGHTSPEED_NAMESPACE,
+                            }}
+                            streaming={true}
+                          />
+                        </StackItem>
+                      )}
+                    </>
+                  ) : pPhase === 'AwaitingSync' || pPhase === 'Completed' ? (
+                    <>
+                      <StackItem>
+                        <Card>
+                          <CardBody>
+                            <Flex
+                              alignItems={{ default: 'alignItemsCenter' }}
+                              gap={{ default: 'gapMd' }}
+                            >
+                              <FlexItem>
+                                <CheckCircleIcon
+                                  color="var(--pf-t--global--icon--color--status--success--default)"
+                                  size="lg"
+                                />
+                              </FlexItem>
+                              <FlexItem>
+                                <strong>
+                                  {pPhase === 'Completed'
+                                    ? t('Execution completed successfully')
+                                    : t('Execution complete, awaiting sync verification')}
+                                </strong>
+                              </FlexItem>
+                            </Flex>
+                          </CardBody>
+                        </Card>
+                      </StackItem>
+                      {agenticRun.status?.steps?.execution?.sandbox?.claimName && (
+                        <StackItem>
+                          <SandboxLogViewer
+                            title={t('Execution')}
+                            sandbox={{
+                              podName: agenticRun.status.steps.execution.sandbox.claimName,
+                              namespace:
+                                agenticRun.status.steps.execution.sandbox.namespace ??
+                                LIGHTSPEED_NAMESPACE,
+                            }}
+                            streaming={false}
+                          />
+                        </StackItem>
+                      )}
+                    </>
                   ) : pPhase === 'Failed' ? (
-                    <StackItem>
-                      <Alert variant="danger" isInline title={t('Analysis failed')}>
-                        {(
-                          agenticRun.status?.conditions as { type: string; message: string }[]
-                        )?.find((c) => c.type === 'Analyzed')?.message ?? t('Unknown error')}
-                      </Alert>
-                    </StackItem>
+                    <>
+                      <StackItem>
+                        <Alert variant="danger" isInline title={t('Execution failed')}>
+                          {(
+                            agenticRun.status?.conditions as { type: string; message: string }[]
+                          )?.find((c) => c.type === 'Executed')?.message ??
+                            (
+                              agenticRun.status?.conditions as { type: string; message: string }[]
+                            )?.find((c) => c.type === 'Analyzed')?.message ??
+                            t('Unknown error')}
+                        </Alert>
+                      </StackItem>
+                      {agenticRun.status?.steps?.execution?.sandbox?.claimName && (
+                        <StackItem>
+                          <SandboxLogViewer
+                            title={t('Execution')}
+                            sandbox={{
+                              podName: agenticRun.status.steps.execution.sandbox.claimName,
+                              namespace:
+                                agenticRun.status.steps.execution.sandbox.namespace ??
+                                LIGHTSPEED_NAMESPACE,
+                            }}
+                            streaming={false}
+                          />
+                        </StackItem>
+                      )}
+                    </>
                   ) : (
                     <StackItem>
                       {resultData.components.length > 0 || resultData.analysisData ? (
