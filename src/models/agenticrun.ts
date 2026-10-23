@@ -225,7 +225,63 @@ export const getRiskColor = (risk?: string): 'green' | 'orange' | 'red' | 'grey'
   }
 };
 
-// --- Adapter components (from CVO outputSchema in AnalysisResult) ---
+// --- Remediation Options (Default mode analysis) ---
+// Re-export types from generated schema for consistency
+
+export type { DiagnosisResult, TokenUsage, ActionRequiredValue } from './generated/analysisresults';
+
+export type ProposedAction = {
+  command?: string;
+  type: string;
+  description: string;
+};
+
+export type RemediationPlan = {
+  description: string;
+  actions: ProposedAction[];
+  risk?: 'Low' | 'Medium' | 'High' | 'Critical';
+  reversible?: 'Reversible' | 'Irreversible' | 'Partial';
+  rollbackPlan?: {
+    description: string;
+    command?: string;
+  };
+};
+
+export type VerificationPlan = {
+  description: string;
+  steps?: Array<{
+    name: string;
+    type: string;
+    command?: string;
+    expected?: string;
+  }>;
+};
+
+export type RBACRule = {
+  namespace?: string;
+  apiGroups: string[];
+  resources: string[];
+  resourceNames?: string[];
+  verbs: string[];
+  justification: string;
+};
+
+export type RBACResult = {
+  namespaceScoped?: RBACRule[];
+  clusterScoped?: RBACRule[];
+};
+
+export type RemediationOption = {
+  title: string;
+  summary?: string;
+  components?: Record<string, unknown>;
+  diagnosis?: import('./generated/analysisresults').DiagnosisResult;
+  remediationPlan?: RemediationPlan;
+  verification?: VerificationPlan;
+  rbac?: RBACResult;
+};
+
+// --- Adapter components (Minimal mode - legacy typed components) ---
 
 export type AdapterComponent = {
   type: string;
@@ -236,20 +292,25 @@ export type AdapterComponent = {
 export type AnalysisDataPayload = Record<string, any>;
 
 export type AnalysisData = {
+  options: RemediationOption[];
   components: AdapterComponent[];
   analysisData?: AnalysisDataPayload;
 };
 
 export const getAnalysisDataFromResult = (result?: LightspeedAnalysisResult): AnalysisData => {
   if (!result?.status?.options?.length) {
-    return { components: [] };
+    return { options: [], components: [] };
   }
-  const option = result.status.options[0];
-  const comp = option.components;
 
+  const options = result.status.options as RemediationOption[];
+  const firstOption = result.status.options[0];
+  const comp = firstOption.components;
+
+  // For backward compatibility with Minimal mode, extract components from first option
   // components is an array of typed adapter components directly
   if (Array.isArray(comp)) {
     return {
+      options,
       components: comp as AdapterComponent[],
     };
   }
@@ -258,12 +319,14 @@ export const getAnalysisDataFromResult = (result?: LightspeedAnalysisResult): An
   const raw = (comp as AnalysisDataPayload)?.analysisData;
   if (Array.isArray(raw)) {
     return {
+      options,
       components: raw as AdapterComponent[],
     };
   }
 
   // Legacy flat object — wrap in components for backward compat
   return {
+    options,
     components: [],
     analysisData: raw as AnalysisDataPayload | undefined,
   };
@@ -393,3 +456,18 @@ export const sortFindings = (findings: OtaFinding[]): OtaFinding[] =>
   [...findings].sort(
     (a, b) => (SEVERITY_ORDER[a.severity] ?? 3) - (SEVERITY_ORDER[b.severity] ?? 3),
   );
+
+// --- Default Mode Helpers ---
+
+export const hasDefaultModeData = (option?: RemediationOption): boolean =>
+  !!option?.diagnosis || !!option?.remediationPlan;
+
+export const hasRemediationPlan = (result?: LightspeedAnalysisResult): boolean => {
+  if (!result?.status?.options?.length) return false;
+  return result.status.options.some((opt) => !!opt.remediationPlan);
+};
+
+export const isMinimalMode = (analysisData?: AnalysisData): boolean => {
+  if (!analysisData?.components?.length) return false;
+  return !analysisData.options?.some(hasDefaultModeData);
+};

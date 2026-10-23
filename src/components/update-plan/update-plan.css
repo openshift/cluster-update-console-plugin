@@ -280,3 +280,42 @@
 .cluster-update-plugin__metrics-link {
   font-size: var(--pf-t--global--font--size--sm);
 }
+
+/* DiagnosisCard */
+.cluster-update-plugin__diagnosis-card {
+  margin-block-end: var(--pf-t--global--spacer--md);
+}
+
+.cluster-update-plugin__diagnosis-root-cause {
+  color: var(--pf-t--global--text--color--regular);
+  font-weight: var(--pf-t--global--font--weight--bold);
+}
+
+/* RemediationPlanView */
+.cluster-update-plugin__remediation-plan {
+  margin-block-end: var(--pf-t--global--spacer--md);
+}
+
+.cluster-update-plugin__remediation-section-title {
+  margin-block: var(--pf-t--global--spacer--md) var(--pf-t--global--spacer--sm);
+  font-size: var(--pf-t--global--font--size--md);
+  font-weight: var(--pf-t--global--font--weight--bold);
+}
+
+.cluster-update-plugin__action-step {
+  background-color: var(--pf-t--global--background--color--secondary--default);
+}
+
+.cluster-update-plugin__rollback-command,
+.cluster-update-plugin__verification-command {
+  margin-block-start: var(--pf-t--global--spacer--sm);
+  padding: var(--pf-t--global--spacer--sm);
+  background-color: var(--pf-t--global--background--color--secondary--default);
+  border: 1px solid var(--pf-t--global--border--color--default);
+  border-radius: var(--pf-t--global--border--radius--small);
+  overflow-x: auto;
+}
+
+.cluster-update-plugin__irreversibility-warning {
+  margin-block: var(--pf-t--global--spacer--md);
+}

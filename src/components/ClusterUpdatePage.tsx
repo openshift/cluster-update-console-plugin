@@ -24,6 +24,7 @@ import { ClusterVersion } from '../models/clusterversion';
 import UpdatePlanTab from './update-plan/UpdatePlanTab';
 import ActivePlansTab from './active-plans/ActivePlansTab';
 import './ClusterUpdatePage.css';
+import './update-plan/update-plan.css';
 
 export default function ClusterUpdatePage() {
   const { t } = useTranslation(I18N_NAMESPACE);
