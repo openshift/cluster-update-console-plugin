@@ -23,6 +23,7 @@ export default tseslint.config(
       ...tseslint.configs.recommended.rules,
       ...react.configs.recommended.rules,
       ...react.configs['jsx-runtime'].rules,
+      'no-unused-vars': 'off',
     },
     languageOptions: {
       globals: globals.browser,
@@ -37,6 +38,10 @@ export default tseslint.config(
         version: 'detect',
       },
     }
+  },
+  {
+    files: ['src/__tests__/**/*.{ts,tsx}', 'src/__mocks__/**/*.{ts,tsx}'],
+    languageOptions: { globals: globals.jest },
   },
   {
     files: ['integration-tests/**/*.{ts,tsx,js}'],

@@ -45,6 +45,8 @@ import PhaseLabel from '../shared/PhaseLabel';
 import PlanHeader from './PlanHeader';
 import AnalysisResultView from './AnalysisResultView';
 import ApprovalPolicyWarningBanner from './ApprovalPolicyWarningBanner';
+import { ExecutionLogs } from '../shared/ExecutionLogs';
+import { hasExecution } from '../../utils/execution';
 // TODO: Re-enable DecisionActions post-TP
 // import DecisionActions from './DecisionActions';
 
@@ -113,7 +115,12 @@ const ReanalyseButton: React.FC<ReanalyseButtonProps> = ({ agenticRun }) => {
           )}
         </ModalBody>
         <ModalFooter>
-          <Button variant="primary" onClick={handleReanalyse} isDisabled={loading} isLoading={loading}>
+          <Button
+            variant="primary"
+            onClick={handleReanalyse}
+            isDisabled={loading}
+            isLoading={loading}
+          >
             {t('Confirm')}
           </Button>
           <Button variant="link" onClick={() => setIsModalOpen(false)} isDisabled={loading}>
@@ -442,7 +449,9 @@ const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ agenticRuns }) => {
                         isInline
                         title={t('{{stage}} failed', { stage: failedStage?.label ?? 'Unknown' })}
                       >
-                        {result?.status?.failureReason ??
+                        {(failedStage?.label === 'Analysis'
+                          ? result?.status?.failureReason
+                          : undefined) ??
                           failedStage?.message ??
                           t('Unknown error')}
                       </Alert>
@@ -454,6 +463,14 @@ const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ agenticRuns }) => {
                       ) : (
                         <Content component="p">{t('Analysis result not yet available.')}</Content>
                       )}
+                    </StackItem>
+                  )}
+                  {hasExecution(agenticRun) && (
+                    <StackItem>
+                      <ExecutionLogs
+                        key={`${agenticRun.metadata?.uid}-${agenticRun.status?.steps?.execution?.sandbox?.claimName}-${agenticRun.status?.steps?.execution?.retryCount ?? 0}`}
+                        run={agenticRun}
+                      />
                     </StackItem>
                   )}
                 </Stack>
