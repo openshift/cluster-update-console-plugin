@@ -1,5 +1,6 @@
 import { consoleFetch } from '@openshift-console/dynamic-plugin-sdk';
-import { LightspeedAgenticRun, derivePhase } from '../models/agenticrun';
+import { LightspeedAgenticRun } from '../models/agenticrun';
+import { getAnalysisStart, hasStepLogs, LogPhase } from './logPhase';
 import { LIGHTSPEED_NAMESPACE } from './constants';
 import { getLogHttpStatus } from './logs';
 import type { SandboxView } from '../hooks/useSandboxLogStream';
@@ -23,17 +24,7 @@ type Resource = {
 
 export type ExecutionPod = SandboxView & { sinceTime?: string };
 
-export const hasExecution = (run: LightspeedAgenticRun): boolean => {
-  const step = run.status?.steps?.execution;
-  const executed = run.status?.conditions?.find((condition) => condition.type === 'Executed');
-  return !!(
-    step?.sandbox?.claimName ||
-    step?.results?.length ||
-    step?.conditions?.some((condition) => condition.reason !== 'Skipped') ||
-    (executed && executed.reason !== 'Skipped') ||
-    derivePhase(run) === 'Executing'
-  );
-};
+export const hasExecution = (run: LightspeedAgenticRun): boolean => hasStepLogs(run, 'execution');
 
 const read = async (url: string, signal: AbortSignal, optional = false) => {
   try {
@@ -67,20 +58,22 @@ const validTime = (value?: string): string | undefined =>
 export const discoverExecutionPod = async (
   run: LightspeedAgenticRun,
   signal: AbortSignal,
+  phase: LogPhase = 'execution',
+  analysisStart?: string,
 ): Promise<ExecutionPod | undefined> => {
-  const sandbox = run.status?.steps?.execution?.sandbox;
+  const sandbox = run.status?.steps?.[phase]?.sandbox;
   if (!sandbox?.claimName || !run.metadata?.uid) return undefined;
   const namespace = sandbox.namespace || run.metadata.namespace || LIGHTSPEED_NAMESPACE;
   const encodedNamespace = encodeURIComponent(namespace);
   const core = `/api/kubernetes/api/v1/namespaces/${encodedNamespace}`;
   const selector = new URLSearchParams({
-    labelSelector: `agentic.openshift.io/run=${run.metadata.uid},agentic.openshift.io/step=execution`,
+    labelSelector: `agentic.openshift.io/run=${run.metadata.uid},agentic.openshift.io/step=${phase}`,
   });
   const bare = (await list(`${core}/pods?${selector}`, signal)).filter(
     (pod) =>
       pod.metadata?.name === sandbox.claimName &&
       pod.metadata?.labels?.['agentic.openshift.io/run'] === run.metadata?.uid &&
-      pod.metadata?.labels?.['agentic.openshift.io/step'] === 'execution' &&
+      pod.metadata?.labels?.['agentic.openshift.io/step'] === phase &&
       !pod.metadata?.ownerReferences?.some((owner) => owner.kind === 'Sandbox'),
   );
   let candidates = bare;
@@ -108,23 +101,29 @@ export const discoverExecutionPod = async (
     );
   }
   candidates = candidates.filter((pod) => !pod.metadata?.deletionTimestamp);
-  if (candidates.length > 1) throw new Error('Ambiguous execution pod');
+  if (candidates.length > 1) throw new Error(`Ambiguous ${phase} pod`);
   const pod = candidates[0];
   if (!pod?.metadata?.name || !pod.metadata.uid) return undefined;
   const container = pod.spec?.containers?.[0]?.name;
   const workload = pod.status?.containerStatuses?.find((status) => status.name === container);
   if (pod.status?.phase === 'Pending' || workload?.state?.waiting) return undefined;
-  const started = run.status?.steps?.execution?.conditions?.find(
+  const started = run.status?.steps?.[phase]?.conditions?.find(
     (condition) => condition.type === 'Started' && condition.status === 'True',
   )?.lastTransitionTime;
+  const podStart =
+    validTime(started) ||
+    validTime(pod.status?.startTime) ||
+    validTime(pod.metadata.creationTimestamp);
+  const boundary =
+    phase === 'analysis' ? validTime(analysisStart) || getAnalysisStart(run) : undefined;
   return {
     namespace,
     podName: pod.metadata.name,
     podUid: pod.metadata.uid,
     container,
     sinceTime:
-      validTime(started) ||
-      validTime(pod.status?.startTime) ||
-      validTime(pod.metadata.creationTimestamp),
+      boundary && (!podStart || Date.parse(boundary) > Date.parse(podStart)) ? boundary : podStart,
   };
 };
+
+export const discoverStepPod = discoverExecutionPod;

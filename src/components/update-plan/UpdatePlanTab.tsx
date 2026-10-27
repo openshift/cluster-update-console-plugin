@@ -25,7 +25,6 @@ import {
 import { CubesIcon, RedoIcon, SearchIcon } from '@patternfly/react-icons';
 import { k8sDelete } from '@openshift-console/dynamic-plugin-sdk';
 import { ClusterVersion } from '../../models/clusterversion';
-import { Link } from 'react-router';
 import {
   LightspeedAgenticRun,
   LightspeedAgenticRunModel,
@@ -45,8 +44,9 @@ import PhaseLabel from '../shared/PhaseLabel';
 import PlanHeader from './PlanHeader';
 import AnalysisResultView from './AnalysisResultView';
 import ApprovalPolicyWarningBanner from './ApprovalPolicyWarningBanner';
-import { ExecutionLogs } from '../shared/ExecutionLogs';
+import { AnalysisLogs, ExecutionLogs } from '../shared/ExecutionLogs';
 import { hasExecution } from '../../utils/execution';
+import { hasStepLogs } from '../../utils/logPhase';
 // TODO: Re-enable DecisionActions post-TP
 // import DecisionActions from './DecisionActions';
 
@@ -427,12 +427,6 @@ const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ agenticRuns }) => {
                                       {t('Sandbox: {{name}}', {
                                         name: agenticRun.status.steps.analysis.sandbox.claimName,
                                       })}
-                                      {' — '}
-                                      <Link
-                                        to={`/k8s/ns/${agenticRun.status.steps.analysis.sandbox.namespace ?? 'openshift-lightspeed'}/pods/${agenticRun.status.steps.analysis.sandbox.claimName}/logs`}
-                                      >
-                                        {t('View pod logs')}
-                                      </Link>
                                     </Content>
                                   </StackItem>
                                 )}
@@ -463,6 +457,11 @@ const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ agenticRuns }) => {
                       ) : (
                         <Content component="p">{t('Analysis result not yet available.')}</Content>
                       )}
+                    </StackItem>
+                  )}
+                  {hasStepLogs(agenticRun, 'analysis') && (
+                    <StackItem>
+                      <AnalysisLogs run={agenticRun} />
                     </StackItem>
                   )}
                   {hasExecution(agenticRun) && (

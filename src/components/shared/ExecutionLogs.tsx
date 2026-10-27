@@ -11,23 +11,28 @@ import {
 } from '@patternfly/react-core';
 import { LogViewer, LogViewerSearch } from '@patternfly/react-log-viewer';
 import { useTranslation } from 'react-i18next';
-import { LightspeedAgenticRun, derivePhase } from '../../models/agenticrun';
-import { useExecutionSandbox } from '../../hooks/useExecutionSandbox';
+import { LightspeedAgenticRun } from '../../models/agenticrun';
+import { useStepSandbox } from '../../hooks/useExecutionSandbox';
 import { useSandboxLogStream } from '../../hooks/useSandboxLogStream';
 import { useRetainedLogs } from '../../hooks/useRetainedLogs';
 import { I18N_NAMESPACE } from '../../utils/constants';
+import { getLogCondition, isLogStreaming, LogPhase } from '../../utils/logPhase';
+import { useLogIdentity } from '../../hooks/useLogIdentity';
 import './ExecutionLogs.css';
 
-export const ExecutionLogs = ({ run }: { run: LightspeedAgenticRun }) => {
+const StepLogs = ({ run, phase }: { run: LightspeedAgenticRun; phase: LogPhase }) => {
   const { t } = useTranslation(I18N_NAMESPACE);
   const [expanded, setExpanded] = useState(false);
   const [following, setFollowing] = useState(true);
   const viewer = useRef<{ scrollToItem?: (index: number) => void }>(null);
-  const streaming = derivePhase(run) === 'Executing';
-  const retained = useRetainedLogs(run.metadata?.uid, expanded && !streaming, 'execution');
+  const analysis = phase === 'analysis';
+  const condition = getLogCondition(run, phase);
+  const waiting = analysis && !condition;
+  const streaming = isLogStreaming(run, phase);
+  const retained = useRetainedLogs(run.metadata?.uid, expanded && !streaming && !waiting, phase);
   const useCollector =
     !streaming && !retained.error && retained.available && retained.lines.length > 0;
-  const sandbox = useExecutionSandbox(run, expanded && !useCollector && !retained.loading);
+  const sandbox = useStepSandbox(run, expanded && !useCollector && !retained.loading, phase);
   const podLogs = useSandboxLogStream(
     sandbox.pod,
     expanded && !useCollector && !retained.loading && !!sandbox.pod && !sandbox.missing,
@@ -37,21 +42,31 @@ export const ExecutionLogs = ({ run }: { run: LightspeedAgenticRun }) => {
   const lines = useCollector ? retained.lines : podLogs.lines;
   const data = useMemo(() => lines.join('\n'), [lines]);
   const loading = expanded && (retained.loading || sandbox.loading || podLogs.loading);
-  const executed = run.status?.conditions?.find((condition) => condition.type === 'Executed');
   const truncated = useCollector ? retained.truncated : podLogs.truncated;
   const error = useCollector
     ? undefined
     : sandbox.error
-      ? t('Failed to resolve execution sandbox: {{detail}}', { detail: sandbox.error })
+      ? analysis
+        ? t('Failed to resolve analysis sandbox: {{detail}}', { detail: sandbox.error })
+        : t('Failed to resolve execution sandbox: {{detail}}', { detail: sandbox.error })
       : podLogs.error;
-  const source = useCollector ? t('Retained execution history') : t('Pod execution logs');
+  const source = useCollector
+    ? analysis
+      ? t('Retained analysis history')
+      : t('Retained execution history')
+    : analysis
+      ? t('Pod analysis logs')
+      : t('Pod execution logs');
+  const loaded = analysis ? t('Analysis logs loaded') : t('Execution logs loaded');
   const connection = {
-    idle: t('Waiting for execution logs'),
-    connecting: t('Connecting to execution logs'),
-    streaming: t('Streaming execution logs'),
-    reconnecting: t('Reconnecting to execution logs'),
-    complete: t('Execution logs loaded'),
-    error: t('Execution log connection failed'),
+    idle: analysis ? t('Waiting for analysis logs') : t('Waiting for execution logs'),
+    connecting: analysis ? t('Connecting to analysis logs') : t('Connecting to execution logs'),
+    streaming: analysis ? t('Streaming analysis logs') : t('Streaming execution logs'),
+    reconnecting: analysis
+      ? t('Reconnecting to analysis logs')
+      : t('Reconnecting to execution logs'),
+    complete: loaded,
+    error: analysis ? t('Analysis log connection failed') : t('Execution log connection failed'),
   }[podLogs.state];
 
   useEffect(() => {
@@ -59,44 +74,77 @@ export const ExecutionLogs = ({ run }: { run: LightspeedAgenticRun }) => {
   }, [expanded, following, lines, podLogs.revision]);
 
   return (
-    <section aria-label={t('Execution')} className="cluster-update-plugin__execution-logs">
-      {executed?.reason !== 'Skipped' && executed?.status === 'True' && (
+    <section
+      aria-label={analysis ? t('Analysis') : t('Execution')}
+      className="cluster-update-plugin__execution-logs"
+    >
+      {condition?.reason !== 'Skipped' && condition?.status === 'True' && (
         <Alert
           isInline
           variant="success"
-          title={t('Execution completed; see run status for verification')}
+          title={
+            analysis
+              ? t('Analysis completed; see run status for subsequent stages')
+              : t('Execution completed; see run status for verification')
+          }
         />
       )}
-      {executed?.status === 'False' && executed.reason !== 'Skipped' && (
-        <Alert isInline variant="danger" title={t('Execution failed')}>
-          {executed.message}
+      {condition?.status === 'False' && condition.reason !== 'Skipped' && (
+        <Alert
+          isInline
+          variant="danger"
+          title={analysis ? t('Analysis failed') : t('Execution failed')}
+        >
+          {condition.message}
         </Alert>
       )}
       <ExpandableSection
         isExpanded={expanded}
         onToggle={(_event, value) => setExpanded(value)}
-        toggleText={expanded ? t('Hide execution logs') : t('View execution logs')}
+        toggleText={
+          expanded
+            ? analysis
+              ? t('Hide analysis logs')
+              : t('Hide execution logs')
+            : analysis
+              ? t('View analysis logs')
+              : t('View execution logs')
+        }
       >
         <Content component="p" role="status" aria-live="polite">
           <Label isCompact>{source}</Label>{' '}
           {useCollector
-            ? t('Execution logs loaded')
+            ? loaded
             : loading && lines.length === 0
               ? t('Loading logs...')
               : (!sandbox.pod || sandbox.missing) && !error
-                ? streaming
-                  ? t('Waiting for execution sandbox')
-                  : t('Execution pod is unavailable')
+                ? streaming || waiting
+                  ? analysis
+                    ? t('Waiting for analysis sandbox')
+                    : t('Waiting for execution sandbox')
+                  : analysis
+                    ? t('Analysis pod is unavailable')
+                    : t('Execution pod is unavailable')
                 : connection}
           {loading && lines.length > 0 && ` — ${t('Loading logs...')}`}
         </Content>
         {useCollector && (
           <Content component="p">
-            {t('Retained history includes all execution attempts for this run.')}
+            {analysis
+              ? t('Retained history includes all analysis attempts for this run.')
+              : t('Retained history includes all execution attempts for this run.')}
           </Content>
         )}
         {(error || retained.error) && (
-          <Alert isInline variant="warning" title={t('Some execution logs could not be loaded')}>
+          <Alert
+            isInline
+            variant="warning"
+            title={
+              analysis
+                ? t('Some analysis logs could not be loaded')
+                : t('Some execution logs could not be loaded')
+            }
+          >
             {error || retained.error}
             <Button
               variant="link"
@@ -106,11 +154,11 @@ export const ExecutionLogs = ({ run }: { run: LightspeedAgenticRun }) => {
                 podLogs.retry();
               }}
             >
-              {t('Retry execution logs')}
+              {analysis ? t('Retry analysis logs') : t('Retry execution logs')}
             </Button>
           </Alert>
         )}
-        {!streaming && !retained.loading && !retained.available && !retained.error && (
+        {!streaming && !waiting && !retained.loading && !retained.available && !retained.error && (
           <Content component="p">
             {t('Retained logs are not configured; using pod logs when available.')}
           </Content>
@@ -120,15 +168,26 @@ export const ExecutionLogs = ({ run }: { run: LightspeedAgenticRun }) => {
             {t('Log output was truncated to viewer line or text limits.')}
           </Content>
         )}
-        {!streaming && !useCollector && !sandbox.pod?.sinceTime && (
+        {!streaming && !waiting && !useCollector && !sandbox.pod?.sinceTime && (
           <Content component="p">
-            {t(
-              'Without an execution-start timestamp, pod history is limited to the latest 500 lines.',
-            )}
+            {analysis
+              ? t(
+                  'Without an analysis-start timestamp, pod history is limited to the latest 500 lines.',
+                )
+              : t(
+                  'Without an execution-start timestamp, pod history is limited to the latest 500 lines.',
+                )}
           </Content>
         )}
         <LogViewer
-          data={data || (loading ? t('Loading logs...') : t('No execution logs available.'))}
+          data={
+            data ||
+            (loading
+              ? t('Loading logs...')
+              : analysis
+                ? t('No analysis logs available.')
+                : t('No execution logs available.'))
+          }
           innerRef={viewer}
           hasLineNumbers
           isTextWrapped
@@ -141,8 +200,8 @@ export const ExecutionLogs = ({ run }: { run: LightspeedAgenticRun }) => {
               <ToolbarContent>
                 <ToolbarItem>
                   <LogViewerSearch
-                    aria-label={t('Search execution logs')}
-                    placeholder={t('Search execution logs')}
+                    aria-label={analysis ? t('Search analysis logs') : t('Search execution logs')}
+                    placeholder={analysis ? t('Search analysis logs') : t('Search execution logs')}
                     nextNavigationButtonAriaLabel={t('Next matching log line')}
                     previousNavigationButtonAriaLabel={t('Previous matching log line')}
                     resetButtonLabel={t('Clear log search')}
@@ -164,4 +223,14 @@ export const ExecutionLogs = ({ run }: { run: LightspeedAgenticRun }) => {
       </ExpandableSection>
     </section>
   );
+};
+
+export const ExecutionLogs = ({ run }: { run: LightspeedAgenticRun }) => {
+  const { identity } = useLogIdentity(run, 'execution');
+  return <StepLogs key={identity} run={run} phase="execution" />;
+};
+
+export const AnalysisLogs = ({ run }: { run: LightspeedAgenticRun }) => {
+  const { identity } = useLogIdentity(run, 'analysis');
+  return <StepLogs key={identity} run={run} phase="analysis" />;
 };

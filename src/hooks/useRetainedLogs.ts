@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { I18N_NAMESPACE, LIGHTSPEED_NAMESPACE } from '../utils/constants';
 import { getLogHttpStatus, MAX_LOG_LINE_CHARS, MAX_LOG_TEXT_CHARS } from '../utils/logs';
+import { LogPhase } from '../utils/logPhase';
 import {
   buildServiceProxyBase,
   MAX_RETAINED_LOG_LINES,
@@ -27,13 +28,13 @@ class RetainedLogsError extends Error {}
 export const useRetainedLogs = (
   runUid?: string,
   active?: boolean,
-  phase: 'execution' = 'execution',
+  phase: LogPhase = 'execution',
 ): RetainedLogsResult => {
   const { t } = useTranslation(I18N_NAMESPACE);
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<{
     runUid?: string;
-    phase: 'execution';
+    phase: LogPhase;
     attempt: number;
     result: Omit<RetainedLogsResult, 'retry'>;
   }>({ phase, attempt, result: emptyResult });
@@ -127,7 +128,7 @@ export const useRetainedLogs = (
           if (cancelled) {
             return;
           }
-          const page = parseRetainedLogsPage(data, runUid, after);
+          const page = parseRetainedLogsPage(data, runUid, after, phase);
           if (!page) {
             throw new RetainedLogsError(t('Invalid retained log response or pagination cursor'));
           }

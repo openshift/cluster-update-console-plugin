@@ -4,7 +4,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { ExecutionLogs } from '../components/shared/ExecutionLogs';
 import { useRetainedLogs } from '../hooks/useRetainedLogs';
 import { useSandboxLogStream } from '../hooks/useSandboxLogStream';
-import { useExecutionSandbox } from '../hooks/useExecutionSandbox';
+import { useStepSandbox } from '../hooks/useExecutionSandbox';
 import { LightspeedAgenticRun } from '../models/agenticrun';
 
 jest.mock('react-i18next', () => ({
@@ -67,7 +67,7 @@ jest.mock('@patternfly/react-log-viewer', () => ({
 
 const retained = useRetainedLogs as jest.Mock;
 const stream = useSandboxLogStream as jest.Mock;
-const sandbox = useExecutionSandbox as jest.Mock;
+const sandbox = useStepSandbox as jest.Mock;
 const retainedRetry = jest.fn();
 const sandboxRetry = jest.fn();
 const podRetry = jest.fn();

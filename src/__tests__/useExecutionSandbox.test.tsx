@@ -1,11 +1,11 @@
 /** @jest-environment jsdom */
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { useExecutionSandbox } from '../hooks/useExecutionSandbox';
-import { discoverExecutionPod } from '../utils/execution';
+import { discoverStepPod } from '../utils/execution';
 import { LightspeedAgenticRun } from '../models/agenticrun';
 
-jest.mock('../utils/execution', () => ({ discoverExecutionPod: jest.fn() }));
-const discover = discoverExecutionPod as jest.Mock;
+jest.mock('../utils/execution', () => ({ discoverStepPod: jest.fn() }));
+const discover = discoverStepPod as jest.Mock;
 const makeRun = (uid = 'run-uid') =>
   ({
     metadata: { uid, namespace: 'ns' },

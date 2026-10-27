@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
-import { LightspeedAgenticRun, derivePhase } from '../models/agenticrun';
-import { discoverExecutionPod, ExecutionPod } from '../utils/execution';
+import { LightspeedAgenticRun } from '../models/agenticrun';
+import { discoverStepPod, ExecutionPod } from '../utils/execution';
+import { isLogStreaming, LogPhase } from '../utils/logPhase';
+import { useLogIdentity } from './useLogIdentity';
 
-export const useExecutionSandbox = (run: LightspeedAgenticRun, active: boolean) => {
+export const useExecutionSandbox = (
+  run: LightspeedAgenticRun,
+  active: boolean,
+  phase: LogPhase = 'execution',
+) => {
   const [result, setResult] = useState<{
     identity: string;
     pod?: ExecutionPod;
@@ -14,15 +20,10 @@ export const useExecutionSandbox = (run: LightspeedAgenticRun, active: boolean) 
   const retry = useCallback(() => setAttempt((value) => value + 1), []);
   const serializedRun = JSON.stringify({
     metadata: { uid: run.metadata?.uid, namespace: run.metadata?.namespace },
-    status: { steps: { execution: run.status?.steps?.execution } },
+    status: { steps: { [phase]: run.status?.steps?.[phase] } },
   });
-  const identity = JSON.stringify([
-    run.metadata?.uid,
-    run.metadata?.namespace,
-    run.status?.steps?.execution?.sandbox,
-    run.status?.steps?.execution?.retryCount,
-  ]);
-  const polling = derivePhase(run) === 'Executing';
+  const { identity, analysisStart } = useLogIdentity(run, phase);
+  const polling = isLogStreaming(run, phase);
 
   useEffect(() => {
     if (!active) return;
@@ -38,7 +39,12 @@ export const useExecutionSandbox = (run: LightspeedAgenticRun, active: boolean) 
             missing: previous.identity === identity ? previous.missing : undefined,
             loading: true,
           }));
-        const next = await discoverExecutionPod(JSON.parse(serializedRun), controller.signal);
+        const next = await discoverStepPod(
+          JSON.parse(serializedRun),
+          controller.signal,
+          phase,
+          analysisStart,
+        );
         if (controller.signal.aborted) return;
         currentPod = next;
         setResult((previous) => ({
@@ -64,7 +70,7 @@ export const useExecutionSandbox = (run: LightspeedAgenticRun, active: boolean) 
       controller.abort();
       clearTimeout(timer);
     };
-  }, [active, attempt, serializedRun, polling, identity]);
+  }, [active, attempt, serializedRun, polling, identity, phase, analysisStart]);
 
   const current = result.identity === identity ? result : undefined;
   return {
@@ -75,3 +81,5 @@ export const useExecutionSandbox = (run: LightspeedAgenticRun, active: boolean) 
     retry,
   };
 };
+
+export const useStepSandbox = useExecutionSandbox;

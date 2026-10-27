@@ -5,6 +5,7 @@ import { consoleFetch } from '@openshift-console/dynamic-plugin-sdk';
 import { useRetainedLogs } from '../hooks/useRetainedLogs';
 import { MAX_RETAINED_LOG_LINES } from '../utils/retainedLogs';
 import { MAX_LOG_LINE_CHARS, MAX_LOG_TEXT_CHARS } from '../utils/logs';
+import { LogPhase } from '../utils/logPhase';
 
 jest.mock('react-i18next', () => {
   const translate = (message: string, values?: Record<string, unknown>) =>
@@ -33,6 +34,65 @@ const page = (ids: number[], hasMore = false, uid = 'run-uid') =>
 
 beforeEach(() => {
   fetchMock.mockReset();
+});
+
+it('paginates analysis history using the exact phase filter without execution records', async () => {
+  const analysisPage = (id: number, hasMore: boolean) =>
+    response({
+      agentic_run_id: 'run-uid',
+      has_more: hasMore,
+      records: [{ ...record(id), phase: 'analysis' }],
+    });
+  fetchMock
+    .mockResolvedValueOnce(config())
+    .mockResolvedValueOnce(analysisPage(1, true))
+    .mockResolvedValueOnce(analysisPage(2, false));
+  const { result } = renderHook(() => useRetainedLogs('run-uid', true, 'analysis'));
+  await waitFor(() => expect(result.current.loading).toBe(false));
+  expect(result.current.lines).toHaveLength(2);
+  for (const [url] of fetchMock.mock.calls.slice(1)) {
+    expect(String(url)).toContain('phase=analysis');
+    expect(String(url)).toContain('agentic_run_id=run-uid');
+  }
+  expect(String(fetchMock.mock.calls[2][0])).toContain('after=1');
+});
+
+it('aborts an old phase request and does not publish its late result', async () => {
+  let finish!: (value: Response) => void;
+  fetchMock.mockResolvedValueOnce(config()).mockReturnValueOnce(
+    new Promise((resolve) => {
+      finish = resolve;
+    }),
+  );
+  const view = renderHook(
+    ({ phase }: { phase: LogPhase }) => useRetainedLogs('run-uid', true, phase),
+    { initialProps: { phase: 'analysis' } },
+  );
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+  const signal = fetchMock.mock.calls[1][1]?.signal;
+  fetchMock.mockResolvedValueOnce(config()).mockResolvedValueOnce(page([2]));
+  view.rerender({ phase: 'execution' });
+  expect(signal?.aborted).toBe(true);
+  expect(view.result.current.lines).toEqual([]);
+  await waitFor(() => expect(view.result.current.loading).toBe(false));
+  await act(async () =>
+    finish(
+      response({
+        agentic_run_id: 'run-uid',
+        has_more: false,
+        records: [{ ...record(1), phase: 'analysis' }],
+      }),
+    ),
+  );
+  expect(view.result.current.lines.join('')).toContain('line 2');
+  expect(view.result.current.lines.join('')).not.toContain('line 1');
+});
+
+it('rejects execution records in an analysis response instead of displaying them', async () => {
+  fetchMock.mockResolvedValueOnce(config()).mockResolvedValueOnce(page([1]));
+  const { result } = renderHook(() => useRetainedLogs('run-uid', true, 'analysis'));
+  await waitFor(() => expect(result.current.error).toBeTruthy());
+  expect(result.current.lines).toEqual([]);
 });
 
 it.each([404, 403])('classifies response-only SDK discovery HTTP %s', async (status) => {

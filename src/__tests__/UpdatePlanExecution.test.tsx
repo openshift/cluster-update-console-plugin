@@ -30,6 +30,7 @@ jest.mock('../components/update-plan/AnalysisResultView', () => ({ default: () =
 jest.mock('../components/shared/PhaseLabel', () => ({ default: () => null }));
 jest.mock('../components/shared/ExecutionLogs', () => ({
   ExecutionLogs: () => <div data-testid="execution-logs" />,
+  AnalysisLogs: () => <div data-testid="analysis-logs" />,
 }));
 
 const fixture = (conditions: unknown[]) =>
@@ -56,7 +57,18 @@ it('preserves analysis failureReason for analysis failure and does not invent ex
   expect(screen.getByText('Analysis failed')).toBeTruthy();
   expect(screen.getByText('analysis-only detail')).toBeTruthy();
   expect(screen.queryByTestId('execution-logs')).toBeNull();
+  expect(screen.getByTestId('analysis-logs')).toBeTruthy();
 });
+
+it.each(['Unknown', 'True', 'False'])(
+  'mounts analysis logs without execution evidence (%s)',
+  (status) => {
+    show(fixture([{ type: 'Analyzed', status }]));
+    expect(screen.getByTestId('analysis-logs')).toBeTruthy();
+    expect(screen.queryByTestId('execution-logs')).toBeNull();
+    expect(screen.queryByText('View pod logs')).toBeNull();
+  },
+);
 
 it.each([
   ['Executed', 'Execution'],

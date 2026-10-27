@@ -9,21 +9,28 @@ An OpenShift Console dynamic plugin that provides an AI-driven cluster update ex
 - **Update History** — Shows the ClusterVersion update history.
 - **Graceful Degradation** — Works without the Lightspeed Proposal CRD installed. The Update History tab is always functional; AI features show a warning banner when unavailable.
 
-## Execution logs
+## Analysis and execution logs
 
-The Update Plan tab keeps execution-step logs available during execution and later
-verification or escalation. Expanding the log section follows the execution pod while
-it is running. After execution, the viewer prefers retained execution history when the
+The Update Plan tab provides separate **View analysis logs** and **View execution logs**
+sections. Each follows only its own step's pod while that step is running. Analysis
+logs remain available after analysis, including for analysis-only runs without an
+execution step; execution logs remain available through verification and escalation.
+After each step, its viewer prefers retained history when the
 `lightspeed-agentic-configuration` ConfigMap in `openshift-lightspeed` provides an
-`otel-admin-endpoint`; otherwise it falls back to the execution pod. Retained history
-is scoped to the AgenticRun UID and execution phase and can include multiple attempts.
-Pod logs are scoped to the resolved execution pod and its execution-start boundary.
+`otel-admin-endpoint`; otherwise it falls back to the selected step's pod. Retained history
+is scoped to the AgenticRun UID and the selected `analysis` or `execution` phase and
+can include multiple attempts of that phase. The two viewers never combine phases.
+Pod logs are scoped to the resolved step pod and its start boundary. Analysis uses
+the active `Analyzed=Unknown` transition as an additional lower bound so that an old
+sandbox reference cannot expose earlier-attempt output while a revision is starting.
+Analysis generation, active-start and sandbox changes reset its viewer identity;
+ordinary completion preserves the current viewer and start boundary.
 
 Viewing requires permission to read the run, pods and pod logs. Claim-managed sandboxes
 also require read access to SandboxClaims and Sandboxes; retained history requires the
 named ConfigMap and collector service-proxy access. Pod discovery follows owner UIDs,
 not an assumption that a claim and pod have the same name. Missing optional retention
-does not change execution status. If the pod has expired and retention is unavailable,
+does not change step status. If the pod has expired and retention is unavailable,
 historical output cannot be recovered by this plugin. Both sources are bounded to
 20,000 lines and 4,194,304 saved text characters, with a 65,536-character per-line
 limit. Retained lines exceeding that width are truncated; an oversized live line

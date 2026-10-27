@@ -1,4 +1,5 @@
 import { MAX_LOG_LINES } from './logs';
+import { LogPhase } from './logPhase';
 
 export const RETAINED_LOG_PAGE_LIMIT = 1000;
 export const MAX_RETAINED_LOG_LINES = MAX_LOG_LINES;
@@ -7,7 +8,7 @@ export interface RetainedLogRecord {
   id: number;
   timestamp: string;
   event: string;
-  phase: 'execution';
+  phase: LogPhase;
   body: unknown;
 }
 
@@ -64,6 +65,7 @@ export const parseRetainedLogsPage = (
   value: unknown,
   runUid: string,
   after = 0,
+  phase: LogPhase = 'execution',
 ): RetainedLogsPage | undefined => {
   if (
     !isObject(value) ||
@@ -84,7 +86,7 @@ export const parseRetainedLogsPage = (
       typeof record.timestamp !== 'string' ||
       !record.timestamp ||
       typeof record.event !== 'string' ||
-      record.phase !== 'execution' ||
+      record.phase !== phase ||
       !Object.prototype.hasOwnProperty.call(record, 'body') ||
       record.body === undefined
     ) {
