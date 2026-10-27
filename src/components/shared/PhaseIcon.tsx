@@ -80,6 +80,12 @@ const PhaseIcon: React.FC<PhaseIconProps> = ({ phase }) => {
           <TimesCircleIcon />
         </Icon>
       );
+    case 'Escalating':
+      return (
+        <Icon status="warning">
+          <InProgressIcon />
+        </Icon>
+      );
     case 'Escalated':
       return (
         <Icon status="warning">

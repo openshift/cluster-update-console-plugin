@@ -34,6 +34,7 @@ import {
   derivePhase,
   getAnalysisDataFromResult,
   getDecisionDisplay,
+  getFailedStage,
   getPhaseDisplay,
 } from '../../models/agenticrun';
 import { I18N_NAMESPACE, LABELS } from '../../utils/constants';
@@ -340,6 +341,7 @@ const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ agenticRuns }) => {
           const target = rawTarget ? unsanitizeVersion(rawTarget) : name;
           const pPhase = derivePhase(agenticRun);
           const phaseDisplay = getPhaseDisplay(pPhase);
+          const failedStage = pPhase === 'Failed' ? getFailedStage(agenticRun) : undefined;
 
           const stepResults = agenticRun.status?.steps?.analysis?.results;
           const resultRef = (stepResults?.[stepResults.length - 1] as { name?: string })?.name;
@@ -435,10 +437,14 @@ const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ agenticRuns }) => {
                     </StackItem>
                   ) : pPhase === 'Failed' ? (
                     <StackItem>
-                      <Alert variant="danger" isInline title={t('Analysis failed')}>
-                        {(
-                          agenticRun.status?.conditions as { type: string; message: string }[]
-                        )?.find((c) => c.type === 'Analyzed')?.message ?? t('Unknown error')}
+                      <Alert
+                        variant="danger"
+                        isInline
+                        title={t('{{stage}} failed', { stage: failedStage?.label ?? 'Unknown' })}
+                      >
+                        {result?.status?.failureReason ??
+                          failedStage?.message ??
+                          t('Unknown error')}
                       </Alert>
                     </StackItem>
                   ) : (

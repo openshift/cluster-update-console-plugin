@@ -1,4 +1,5 @@
 {
+  "{{stage}} failed": "{{stage}} failed",
   "Action failed": "Action failed",
   "Active update plans": "Active update plans",
   "Age": "Age",
@@ -6,7 +7,6 @@
   "AI Assessment": "AI Assessment",
   "Analyse": "Analyse",
   "Analysis data not available.": "Analysis data not available.",
-  "Analysis failed": "Analysis failed",
   "Analysis result not yet available.": "Analysis result not yet available.",
   "Analyzing": "Analyzing",
   "Approve & upgrade": "Approve & upgrade",
