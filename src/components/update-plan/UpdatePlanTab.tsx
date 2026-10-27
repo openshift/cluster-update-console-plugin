@@ -25,7 +25,6 @@ import {
 import { CubesIcon, RedoIcon, SearchIcon } from '@patternfly/react-icons';
 import { k8sDelete } from '@openshift-console/dynamic-plugin-sdk';
 import { ClusterVersion } from '../../models/clusterversion';
-import { Link } from 'react-router';
 import {
   LightspeedAgenticRun,
   LightspeedAgenticRunModel,
@@ -45,6 +44,9 @@ import PhaseLabel from '../shared/PhaseLabel';
 import PlanHeader from './PlanHeader';
 import AnalysisResultView from './AnalysisResultView';
 import ApprovalPolicyWarningBanner from './ApprovalPolicyWarningBanner';
+import { AnalysisLogs, ExecutionLogs } from '../shared/ExecutionLogs';
+import { hasExecution } from '../../utils/execution';
+import { hasStepLogs } from '../../utils/logPhase';
 // TODO: Re-enable DecisionActions post-TP
 // import DecisionActions from './DecisionActions';
 
@@ -113,7 +115,12 @@ const ReanalyseButton: React.FC<ReanalyseButtonProps> = ({ agenticRun }) => {
           )}
         </ModalBody>
         <ModalFooter>
-          <Button variant="primary" onClick={handleReanalyse} isDisabled={loading} isLoading={loading}>
+          <Button
+            variant="primary"
+            onClick={handleReanalyse}
+            isDisabled={loading}
+            isLoading={loading}
+          >
             {t('Confirm')}
           </Button>
           <Button variant="link" onClick={() => setIsModalOpen(false)} isDisabled={loading}>
@@ -420,12 +427,6 @@ const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ agenticRuns }) => {
                                       {t('Sandbox: {{name}}', {
                                         name: agenticRun.status.steps.analysis.sandbox.claimName,
                                       })}
-                                      {' — '}
-                                      <Link
-                                        to={`/k8s/ns/${agenticRun.status.steps.analysis.sandbox.namespace ?? 'openshift-lightspeed'}/pods/${agenticRun.status.steps.analysis.sandbox.claimName}/logs`}
-                                      >
-                                        {t('View pod logs')}
-                                      </Link>
                                     </Content>
                                   </StackItem>
                                 )}
@@ -442,7 +443,9 @@ const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ agenticRuns }) => {
                         isInline
                         title={t('{{stage}} failed', { stage: failedStage?.label ?? 'Unknown' })}
                       >
-                        {result?.status?.failureReason ??
+                        {(failedStage?.label === 'Analysis'
+                          ? result?.status?.failureReason
+                          : undefined) ??
                           failedStage?.message ??
                           t('Unknown error')}
                       </Alert>
@@ -454,6 +457,19 @@ const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ agenticRuns }) => {
                       ) : (
                         <Content component="p">{t('Analysis result not yet available.')}</Content>
                       )}
+                    </StackItem>
+                  )}
+                  {hasStepLogs(agenticRun, 'analysis') && (
+                    <StackItem>
+                      <AnalysisLogs run={agenticRun} />
+                    </StackItem>
+                  )}
+                  {hasExecution(agenticRun) && (
+                    <StackItem>
+                      <ExecutionLogs
+                        key={`${agenticRun.metadata?.uid}-${agenticRun.status?.steps?.execution?.sandbox?.claimName}-${agenticRun.status?.steps?.execution?.retryCount ?? 0}`}
+                        run={agenticRun}
+                      />
                     </StackItem>
                   )}
                 </Stack>
