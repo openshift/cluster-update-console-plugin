@@ -11,7 +11,7 @@
   padding-block-start: 0;
 }
 
-.cluster-update-plugin__preview-badge.pf-v6-c-label {
-  --pf-v6-c-label--BackgroundColor: #d93f00;
+.cluster-update-plugin__header .cluster-update-plugin__preview-badge {
+  --pf-v6-c-label--BackgroundColor: var(--pf-t--global--color--nonstatus--orangered--400);
   --pf-v6-c-label--Color: var(--pf-t--color--white);
 }
