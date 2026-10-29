@@ -27,13 +27,10 @@
 .cluster-update-plugin__plan-header-meta {
   color: var(--pf-t--global--text--color--subtle);
   font-size: var(--pf-t--global--font--size--sm);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
   margin-block-end: var(--pf-t--global--spacer--xs);
 }
 
 .cluster-update-plugin__plan-header-versions {
-  font-size: var(--pf-t--global--font--size--lg);
   font-weight: var(--pf-t--global--font--weight--bold);
 }
 

@@ -45,8 +45,7 @@ import PhaseLabel from '../shared/PhaseLabel';
 import PlanHeader from './PlanHeader';
 import AnalysisResultView from './AnalysisResultView';
 import ApprovalPolicyWarningBanner from './ApprovalPolicyWarningBanner';
-// TODO: Re-enable DecisionActions post-TP
-// import DecisionActions from './DecisionActions';
+import DecisionActions from './DecisionActions';
 
 type ReanalyseButtonProps = {
   agenticRun: LightspeedAgenticRun;
