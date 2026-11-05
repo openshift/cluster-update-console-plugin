@@ -132,6 +132,43 @@ yarn lint    # eslint + prettier + stylelint (with --fix)
 yarn test    # Jest unit tests
 ```
 
+### Testing
+
+This repo uses three testing frameworks:
+
+**Jest** - Unit tests for utilities and helpers
+```bash
+yarn test
+```
+
+**Cypress** - E2E UI tests (existing, required in CI)
+```bash
+yarn test-cypress              # Interactive mode
+yarn test-cypress-headless     # CI mode
+```
+
+**Playwright** - E2E UI tests (optional in CI)
+```bash
+yarn test-playwright           # Interactive mode with UI
+yarn test-playwright-headless  # CI mode
+```
+
+**Cypress** requires:
+- `BRIDGE_BASE_ADDRESS` - Console URL
+- `BRIDGE_KUBEADMIN_PASSWORD` - Admin password
+
+**Playwright** requires:
+- `BASE_URL` - Console URL (e.g., https://console-openshift-console.apps.cluster.example.com)
+- `LOGIN_PASSWORD` - Admin password (required)
+- `LOGIN_USERNAME` - Admin username (default: `kubeadmin`)
+- `LOGIN_IDP` - Identity provider name (default: `kube:admin`)
+- `KUBECONFIG_PATH` - Path to kubeconfig for artifact collection (optional)
+- `SKIP_PLUGIN_SETUP` - Skip global setup if auth state already exists (optional)
+
+Playwright uses global setup to authenticate once and reuse the session across all tests.
+
+For local development, use `yarn start-console` to run the console in a container.
+
 ### Styling rules
 
 The `.stylelintrc.yaml` enforces strict rules to prevent breaking console:
