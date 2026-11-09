@@ -10,6 +10,7 @@ export type Scenario =
   | 'Pending'
   | 'Analyzing'
   | 'Proposed'
+  | 'ReadinessBlocked'
   | 'Executing'
   | 'AwaitingVerification'
   | 'Verifying'
@@ -145,6 +146,63 @@ const option: RemediationOption = {
 };
 
 export const resourcesFor = (scenario: Scenario, revision: number) => {
+  const blocked = scenario === 'ReadinessBlocked';
+  const readinessOption: RemediationOption = {
+    ...option,
+    ...(blocked
+      ? {
+          summary: 'Resolve the operator prerequisite before requesting the platform update.',
+          diagnosis: {
+            rootCause: 'An operator InstallPlan is waiting for manual approval.',
+            summary:
+              'Platform health checks pass. Review and approve the operator InstallPlan, then re-analyse before starting the platform update.',
+          },
+        }
+      : {}),
+    components: {
+      analysisData: [
+        {
+          type: 'ota_readiness_summary',
+          decision: blocked ? 'block' : 'recommend',
+          checks: [
+            {
+              name: 'Cluster operators',
+              status: 'pass',
+              detail: '34 operators available; none degraded.',
+            },
+            { name: 'Node health', status: 'pass', detail: 'All 6 nodes are Ready.' },
+            {
+              name: 'Operator prerequisites',
+              status: blocked ? 'fail' : 'pass',
+              detail: blocked
+                ? 'An InstallPlan requires review.'
+                : 'No pending operator prerequisites.',
+            },
+            { name: 'Pod disruption budgets', status: 'pass', detail: 'No blocked node drains.' },
+          ],
+        },
+        ...(blocked
+          ? [
+              {
+                type: 'ota_finding',
+                severity: 'blocker',
+                check: 'Operator prerequisites',
+                detail:
+                  'The monitoring operator has a pending InstallPlan. Its supported version is required for the target platform.',
+                affectedResources: [
+                  'InstallPlan openshift-monitoring/install-monitoring-501',
+                  'Subscription openshift-monitoring/monitoring-operator',
+                ],
+                prerequisite:
+                  'Review the InstallPlan changes and approve the operator update. Wait for it to finish, then re-analyse cluster readiness.',
+                verifyCommand:
+                  'oc get installplan install-monitoring-501 -n openshift-monitoring -o yaml',
+              },
+            ]
+          : []),
+      ],
+    },
+  };
   const analyzed = !['Pending', 'Analyzing', 'AnalysisFailed'].includes(scenario);
   const execution = [
     'Executing',
@@ -289,6 +347,7 @@ export const resourcesFor = (scenario: Scenario, revision: number) => {
     metadata: {
       name: 'preview-analysis-result',
       uid: 'preview-analysis-result',
+      creationTimestamp: createdAt,
       namespace: LIGHTSPEED_NAMESPACE,
     },
     spec: { agenticRunName: runName },
@@ -304,9 +363,9 @@ export const resourcesFor = (scenario: Scenario, revision: number) => {
         : {
             actionRequired: 'True',
             options: [
-              option,
+              readinessOption,
               {
-                ...option,
+                ...readinessOption,
                 title: 'Update operators before the platform',
                 summary: 'Update the monitoring operator first, then perform the platform upgrade.',
                 remediationPlan: {

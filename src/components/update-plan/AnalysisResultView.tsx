@@ -1,7 +1,6 @@
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Alert,
   Card,
   CardBody,
   CardTitle,
@@ -22,19 +21,20 @@ import {
   AnalysisData,
   getReadinessSummary,
   getFindings,
-  sortFindings,
   getOlmOperatorStatus,
   getDecisionDisplay,
   hasDefaultModeData,
-  SEVERITY_LABELS,
 } from '../../models/agenticrun';
 import { I18N_NAMESPACE } from '../../utils/constants';
 import { MarkdownContent } from '../shared/MarkdownContent';
+import { ReadinessChecklist } from './ReadinessChecklist';
 import { RemediationOptionCard } from './lightspeed/RemediationOptionCard';
 
 type AnalysisResultViewProps = {
   analysisData: AnalysisData;
   analysisLogs?: React.ReactNode;
+  assessedAt?: string;
+  recheckAction?: React.ReactNode;
   selectedOptionIndex?: number;
   onSelectOption?: (index: number) => void;
 };
@@ -84,6 +84,8 @@ const checkStatusColor = (status: string): 'green' | 'orange' | 'red' | 'blue' =
 const AnalysisResultView: React.FC<AnalysisResultViewProps> = ({
   analysisData,
   analysisLogs,
+  assessedAt,
+  recheckAction,
   selectedOptionIndex,
   onSelectOption,
 }) => {
@@ -95,7 +97,7 @@ const AnalysisResultView: React.FC<AnalysisResultViewProps> = ({
   // Extract all available data upfront
   const hasRemediationMode = options.some(hasDefaultModeData);
   const readinessSummary = getReadinessSummary(components);
-  const findings = sortFindings(getFindings(components));
+  const findings = getFindings(components);
   const olmStatus = getOlmOperatorStatus(components);
 
   // Determine decision for AI Assessment card
@@ -154,39 +156,14 @@ const AnalysisResultView: React.FC<AnalysisResultViewProps> = ({
         </StackItem>
       )}
 
-      {/* Readiness Checks - from typed components */}
-      {readinessSummary?.checks && readinessSummary.checks.length > 0 && (
+      {((readinessSummary?.checks?.length ?? 0) > 0 || findings.length > 0) && (
         <StackItem>
-          <Card>
-            <CardTitle>{t('Readiness Checks')}</CardTitle>
-            <CardBody>
-              <Table aria-label={t('Readiness checks')} variant="compact">
-                <Thead>
-                  <Tr>
-                    <Th>{t('Check')}</Th>
-                    <Th>{t('Status')}</Th>
-                    <Th>{t('Details')}</Th>
-                  </Tr>
-                </Thead>
-                <Tbody>
-                  {readinessSummary.checks.map((check) => (
-                    <Tr key={check.name}>
-                      <Td dataLabel={t('Check')}>
-                        <strong>{check.name}</strong>
-                      </Td>
-                      <Td dataLabel={t('Status')}>
-                        {checkStatusIcon(check.status)}{' '}
-                        <Label color={checkStatusColor(check.status)} isCompact>
-                          {check.status}
-                        </Label>
-                      </Td>
-                      <Td dataLabel={t('Details')}>{check.detail ?? ''}</Td>
-                    </Tr>
-                  ))}
-                </Tbody>
-              </Table>
-            </CardBody>
-          </Card>
+          <ReadinessChecklist
+            checks={readinessSummary?.checks ?? []}
+            findings={findings}
+            assessedAt={assessedAt}
+            recheckAction={recheckAction}
+          />
         </StackItem>
       )}
 
@@ -228,35 +205,6 @@ const AnalysisResultView: React.FC<AnalysisResultViewProps> = ({
               </Table>
             </CardBody>
           </Card>
-        </StackItem>
-      )}
-
-      {/* Findings */}
-      {findings.length > 0 && (
-        <StackItem>
-          {findings.map((f, i) => (
-            <Alert
-              key={`finding-${i}`}
-              variant={
-                f.severity === 'blocker' ? 'danger' : f.severity === 'warning' ? 'warning' : 'info'
-              }
-              isInline
-              title={`${SEVERITY_LABELS[f.severity] ?? f.severity}: ${f.check}`}
-              style={{ marginBottom: '8px' }}
-            >
-              {f.detail}
-              {f.prerequisite && (
-                <Content component="p" style={{ marginTop: '8px' }}>
-                  <strong>{t('Prerequisite:')}</strong> {f.prerequisite}
-                </Content>
-              )}
-              {f.verifyCommand && (
-                <Content component="small" style={{ display: 'block', marginTop: '4px' }}>
-                  <code>{f.verifyCommand}</code>
-                </Content>
-              )}
-            </Alert>
-          ))}
         </StackItem>
       )}
 

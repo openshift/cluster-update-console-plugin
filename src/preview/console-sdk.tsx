@@ -19,7 +19,14 @@ export const useK8sWatchResource = <T,>({
   name?: string;
   namespace?: string;
 }): [T, boolean, undefined] => {
-  const { run, results, executionResults, approval } = usePreview();
+  const { run, results, executionResults, approval, scenario } = usePreview();
+  const updating = [
+    'Executing',
+    'AwaitingVerification',
+    'Verifying',
+    'VerificationFailed',
+  ].includes(scenario);
+  const target = updating || scenario === 'Completed' ? '5.0.1' : '5.0.0-rc.6';
   const resources: Record<string, unknown> = {
     AgenticRun: [run],
     AnalysisResult: results,
@@ -36,10 +43,84 @@ export const useK8sWatchResource = <T,>({
       },
     },
     ClusterVersion: {
-      metadata: { name: 'version' },
-      spec: { channel: 'stable-5.0' },
-      status: { desired: { version: '5.0.0-rc.6', image: 'preview' } },
+      metadata: { name: 'version', generation: 1 },
+      spec: {
+        channel: 'stable-5.0',
+        ...(target === '5.0.1' ? { desiredUpdate: { version: target } } : {}),
+      },
+      status: {
+        observedGeneration: 1,
+        desired: { version: target, image: 'preview-target' },
+        history: [
+          {
+            version: target,
+            image: 'preview-target',
+            state: updating ? 'Partial' : 'Completed',
+            startedTime: createdAt,
+            verified: true,
+          },
+          {
+            version: '5.0.0-rc.6',
+            image: 'preview',
+            state: 'Completed',
+            startedTime: createdAt,
+            verified: true,
+          },
+        ],
+        conditions: [
+          {
+            type: 'Progressing',
+            status: updating ? 'True' : 'False',
+            message: updating
+              ? 'Applying the release and rolling out node configurations.'
+              : `Cluster version is ${target}.`,
+          },
+          { type: 'Available', status: 'True' },
+        ],
+      },
     },
+    ClusterOperator: Array.from({ length: 34 }, (_, index) => ({
+      metadata: { name: `operator-${index + 1}` },
+      status: {
+        versions: [
+          {
+            name: 'operator',
+            version: index < 28 || !updating ? target : '5.0.0-rc.6',
+          },
+        ],
+        conditions: [
+          { type: 'Available', status: 'True' },
+          { type: 'Degraded', status: 'False' },
+          {
+            type: 'Progressing',
+            status: index < 28 || !updating ? 'False' : 'True',
+          },
+        ],
+      },
+    })),
+    MachineConfigPool: ['master', 'worker'].map((name) => ({
+      metadata: { name, generation: 1 },
+      spec: { configuration: { name: `rendered-${name}` } },
+      status: {
+        observedGeneration: 1,
+        machineCount: name === 'master' ? 3 : 6,
+        updatedMachineCount: name === 'master' ? 3 : !updating ? 6 : 2,
+        readyMachineCount: name === 'master' ? 3 : !updating ? 6 : 5,
+        conditions: [
+          {
+            type: 'Updated',
+            status: name === 'master' || !updating ? 'True' : 'False',
+          },
+          { type: 'Degraded', status: 'False' },
+        ],
+      },
+    })),
+    MachineConfig: ['master', 'worker'].map((name) => ({
+      metadata: {
+        name: `rendered-${name}`,
+        annotations: { 'machineconfiguration.openshift.io/release-image-version': target },
+      },
+    })),
   };
   return [resources[groupVersionKind.kind] as T, true, undefined];
 };

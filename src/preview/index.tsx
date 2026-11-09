@@ -22,6 +22,7 @@ const Preview = () => {
     ['Pending', t('Pending')],
     ['Analyzing', t('Analyzing')],
     ['Proposed', t('Awaiting decision')],
+    ['ReadinessBlocked', t('Readiness blockers')],
     ['Executing', t('Executing')],
     ['AwaitingVerification', t('Awaiting verification')],
     ['Verifying', t('Verifying')],

@@ -20,6 +20,8 @@ import {
   LightspeedAnalysisResult,
   derivePhase,
   getAnalysisDataFromResult,
+  getReadinessSummary,
+  getFindings,
   getFailedStage,
   getPhaseDisplay,
   hasRemediationPlan,
@@ -173,6 +175,10 @@ const UpdatePlanSections: React.FC<UpdatePlanSectionsProps> = ({
     : undefined;
   const resultData = getAnalysisDataFromResult(result);
   // Selection and confirmation must refer to the exact analysis the user reviewed.
+  const checklistRecheck =
+    phase === 'Proposed' &&
+    ((getReadinessSummary(resultData.components)?.checks?.length ?? 0) > 0 ||
+      getFindings(resultData.components).length > 0);
   const resultKey = `${result?.metadata?.uid ?? resultRef}:${JSON.stringify(resultData.options)}`;
   const executableIndices = resultData.options.flatMap((option, index) =>
     option.remediationPlan ? [index] : [],
@@ -211,7 +217,7 @@ const UpdatePlanSections: React.FC<UpdatePlanSectionsProps> = ({
                 <FlexItem grow={{ default: 'grow' }}>
                   <PlanHeader agenticRun={agenticRun} />
                 </FlexItem>
-                {phase !== 'Pending' && <FlexItem>{reanalyseButton}</FlexItem>}
+                {phase !== 'Pending' && !checklistRecheck && <FlexItem>{reanalyseButton}</FlexItem>}
               </Flex>
             </StackItem>
             {analysisPhase === 'Analyzing' && (
@@ -257,6 +263,8 @@ const UpdatePlanSections: React.FC<UpdatePlanSectionsProps> = ({
                 <AnalysisResultView
                   key={resultKey}
                   analysisData={resultData}
+                  assessedAt={result?.metadata?.creationTimestamp}
+                  recheckAction={checklistRecheck ? reanalyseButton : undefined}
                   analysisLogs={analysisLogs}
                   selectedOptionIndex={selectedOptionIndex}
                   onSelectOption={
