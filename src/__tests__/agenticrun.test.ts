@@ -8,6 +8,8 @@ import {
   sortFindings,
   derivePhase,
   getFailedStage,
+  hasDefaultModeData,
+  hasRemediationPlan,
   COMPONENT_TYPES,
   AdapterComponent,
   LightspeedAgenticRun,
@@ -15,6 +17,7 @@ import {
   OtaReadinessSummary,
   OtaFinding,
   OtaOlmOperatorStatus,
+  RemediationOption,
 } from '../models/agenticrun';
 
 describe('getPhaseDisplay', () => {
@@ -392,5 +395,116 @@ describe('sortFindings', () => {
 
   it('returns empty array for empty input', () => {
     expect(sortFindings([])).toEqual([]);
+  });
+});
+
+describe('Default Mode Helpers', () => {
+  describe('hasDefaultModeData', () => {
+    it('returns true when option has diagnosis', () => {
+      const option: RemediationOption = {
+        title: 'Fix memory issue',
+        diagnosis: {
+          confidence: 'High',
+          rootCause: 'OOMKilled pod',
+          summary: 'Pod is running out of memory',
+        },
+      };
+      expect(hasDefaultModeData(option)).toBe(true);
+    });
+
+    it('returns true when option has remediationPlan', () => {
+      const option: RemediationOption = {
+        title: 'Fix memory issue',
+        remediationPlan: {
+          actions: [{ type: 'patch', description: 'Increase memory limit' }],
+          description: 'Increase memory',
+          risk: 'Low',
+        },
+      };
+      expect(hasDefaultModeData(option)).toBe(true);
+    });
+
+    it('returns true when option has both diagnosis and remediationPlan', () => {
+      const option: RemediationOption = {
+        title: 'Fix memory issue',
+        diagnosis: {
+          confidence: 'High',
+          rootCause: 'OOMKilled pod',
+          summary: 'Pod is running out of memory',
+        },
+        remediationPlan: {
+          actions: [{ type: 'patch', description: 'Increase memory limit' }],
+          description: 'Increase memory',
+          risk: 'Low',
+        },
+      };
+      expect(hasDefaultModeData(option)).toBe(true);
+    });
+
+    it('returns false when option has only components (Minimal mode)', () => {
+      const option: RemediationOption = {
+        title: 'Analysis',
+        components: {
+          analysisData: [{ type: 'ota_readiness_summary', decision: 'recommend', checks: [] }],
+        },
+      };
+      expect(hasDefaultModeData(option)).toBe(false);
+    });
+
+    it('returns false for undefined option', () => {
+      expect(hasDefaultModeData(undefined)).toBe(false);
+    });
+  });
+
+  describe('hasRemediationPlan', () => {
+    it('returns true when result has options with remediationPlan', () => {
+      const result: LightspeedAnalysisResult = {
+        spec: { agenticRunName: 'test' },
+        status: {
+          options: [
+            {
+              title: 'Fix issue',
+              remediationPlan: {
+                actions: [{ type: 'patch', description: 'Fix it' }],
+                description: 'Fix',
+                risk: 'Low',
+              },
+            },
+          ],
+        },
+      } as unknown as LightspeedAnalysisResult;
+      expect(hasRemediationPlan(result)).toBe(true);
+    });
+
+    it('returns false when result has options without remediationPlan', () => {
+      const result: LightspeedAnalysisResult = {
+        spec: { agenticRunName: 'test' },
+        status: {
+          options: [
+            {
+              title: 'Analysis only',
+              diagnosis: {
+                confidence: 'High',
+                rootCause: 'Issue',
+                summary: 'No fix available',
+              },
+            },
+          ],
+        },
+      } as unknown as LightspeedAnalysisResult;
+      expect(hasRemediationPlan(result)).toBe(false);
+    });
+
+    it('returns false when result has no options', () => {
+      const result: LightspeedAnalysisResult = {
+        spec: { agenticRunName: 'test' },
+        status: {},
+      } as LightspeedAnalysisResult;
+      expect(hasRemediationPlan(result)).toBe(false);
+    });
+
+    it('returns false for undefined result', () => {
+      expect(hasRemediationPlan(undefined)).toBe(false);
+    });
   });
 });

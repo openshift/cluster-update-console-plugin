@@ -25,7 +25,6 @@ import {
 import { CubesIcon, RedoIcon, SearchIcon } from '@patternfly/react-icons';
 import { k8sDelete } from '@openshift-console/dynamic-plugin-sdk';
 import { ClusterVersion } from '../../models/clusterversion';
-import { Link } from 'react-router';
 import {
   LightspeedAgenticRun,
   LightspeedAgenticRunModel,
@@ -36,6 +35,7 @@ import {
   getDecisionDisplay,
   getFailedStage,
   getPhaseDisplay,
+  hasRemediationPlan,
 } from '../../models/agenticrun';
 import { I18N_NAMESPACE, LABELS } from '../../utils/constants';
 import { compareSemVer, unsanitizeVersion } from '../../utils/version';
@@ -45,8 +45,10 @@ import PhaseLabel from '../shared/PhaseLabel';
 import PlanHeader from './PlanHeader';
 import AnalysisResultView from './AnalysisResultView';
 import ApprovalPolicyWarningBanner from './ApprovalPolicyWarningBanner';
-// TODO: Re-enable DecisionActions post-TP
-// import DecisionActions from './DecisionActions';
+import DecisionActions from './DecisionActions';
+import { AnalysisLogs, ExecutionLogs } from '../shared/ExecutionLogs';
+import { hasExecution } from '../../utils/execution';
+import { hasStepLogs } from '../../utils/logPhase';
 
 type ReanalyseButtonProps = {
   agenticRun: LightspeedAgenticRun;
@@ -113,7 +115,12 @@ const ReanalyseButton: React.FC<ReanalyseButtonProps> = ({ agenticRun }) => {
           )}
         </ModalBody>
         <ModalFooter>
-          <Button variant="primary" onClick={handleReanalyse} isDisabled={loading} isLoading={loading}>
+          <Button
+            variant="primary"
+            onClick={handleReanalyse}
+            isDisabled={loading}
+            isLoading={loading}
+          >
             {t('Confirm')}
           </Button>
           <Button variant="link" onClick={() => setIsModalOpen(false)} isDisabled={loading}>
@@ -141,14 +148,13 @@ type UpdatePlanTabProps = {
   agenticRuns: LightspeedAgenticRun[];
 };
 
-const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ agenticRuns }) => {
+const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ clusterVersion, agenticRuns }) => {
   const { t } = useTranslation(I18N_NAMESPACE);
   const [selectedName, setSelectedName] = React.useState('');
   const [expandedPanels, setExpandedPanels] = React.useState<Set<string>>(new Set());
   const userCollapsedRef = React.useRef<Set<string>>(new Set());
   const [submittedNames, setSubmittedNames] = React.useState<Set<string>>(new Set());
   const [approvalsRaw] = useAgenticRunApprovals();
-  const approvals = approvalsRaw ?? [];
   const [analysisResultsRaw] = useAnalysisResults();
   const analysisResults = analysisResultsRaw ?? [];
 
@@ -159,12 +165,12 @@ const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ agenticRuns }) => {
 
   const selectedApproval = React.useMemo(
     () =>
-      approvals.find(
+      (approvalsRaw ?? []).find(
         (a) =>
           a.metadata?.name === selectedRun?.metadata?.name &&
           a.metadata?.namespace === selectedRun?.metadata?.namespace,
       ),
-    [approvals, selectedRun],
+    [approvalsRaw, selectedRun],
   );
 
   const selectedPhase = derivePhase(selectedRun);
@@ -394,6 +400,11 @@ const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ agenticRuns }) => {
                   <StackItem>
                     <PlanHeader agenticRun={agenticRun} />
                   </StackItem>
+                  {hasStepLogs(agenticRun, 'analysis') && (
+                    <StackItem>
+                      <AnalysisLogs run={agenticRun} />
+                    </StackItem>
+                  )}
                   {pPhase === 'Analyzing' || (pPhase === 'Pending' && submittedNames.has(name)) ? (
                     <StackItem>
                       <Card>
@@ -420,12 +431,6 @@ const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ agenticRuns }) => {
                                       {t('Sandbox: {{name}}', {
                                         name: agenticRun.status.steps.analysis.sandbox.claimName,
                                       })}
-                                      {' — '}
-                                      <Link
-                                        to={`/k8s/ns/${agenticRun.status.steps.analysis.sandbox.namespace ?? 'openshift-lightspeed'}/pods/${agenticRun.status.steps.analysis.sandbox.claimName}/logs`}
-                                      >
-                                        {t('View pod logs')}
-                                      </Link>
                                     </Content>
                                   </StackItem>
                                 )}
@@ -442,18 +447,50 @@ const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ agenticRuns }) => {
                         isInline
                         title={t('{{stage}} failed', { stage: failedStage?.label ?? 'Unknown' })}
                       >
-                        {result?.status?.failureReason ??
+                        {(failedStage?.label === 'Analysis'
+                          ? result?.status?.failureReason
+                          : undefined) ??
                           failedStage?.message ??
                           t('Unknown error')}
                       </Alert>
                     </StackItem>
                   ) : (
-                    <StackItem>
-                      {resultData.components.length > 0 || resultData.analysisData ? (
-                        <AnalysisResultView analysisData={resultData} />
-                      ) : (
-                        <Content component="p">{t('Analysis result not yet available.')}</Content>
+                    <>
+                      <StackItem>
+                        {resultData.options.length > 0 ||
+                        resultData.components.length > 0 ||
+                        resultData.analysisData ? (
+                          <AnalysisResultView analysisData={resultData} />
+                        ) : (
+                          <Content component="p">{t('Analysis result not yet available.')}</Content>
+                        )}
+                      </StackItem>
+                      {result && !hasRemediationPlan(result) && pPhase === 'Proposed' && (
+                        <StackItem>
+                          <Alert variant="info" isInline title={t('No remediation plan available')}>
+                            {t(
+                              'Analysis indicates this upgrade is not feasible. Review diagnosis for details.',
+                            )}
+                          </Alert>
+                        </StackItem>
                       )}
+                      {result && hasRemediationPlan(result) && pPhase === 'Proposed' && (
+                        <StackItem>
+                          <DecisionActions
+                            agenticRun={agenticRun}
+                            clusterVersion={clusterVersion}
+                            analysisData={resultData}
+                          />
+                        </StackItem>
+                      )}
+                    </>
+                  )}
+                  {hasExecution(agenticRun) && (
+                    <StackItem>
+                      <ExecutionLogs
+                        key={`${agenticRun.metadata?.uid}-${agenticRun.status?.steps?.execution?.sandbox?.claimName}-${agenticRun.status?.steps?.execution?.retryCount ?? 0}`}
+                        run={agenticRun}
+                      />
                     </StackItem>
                   )}
                 </Stack>
