@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { LightspeedAgenticRun } from '../models/agenticrun';
 import { discoverStepPod, ExecutionPod } from '../utils/execution';
 import { isLogStreaming, LogPhase } from '../utils/logPhase';
+import { getLogHttpStatus } from '../utils/logs';
 import { useLogIdentity } from './useLogIdentity';
 
 export const useExecutionSandbox = (
@@ -56,13 +57,25 @@ export const useExecutionSandbox = (
         if (polling) timer = setTimeout(refresh, 3000);
       } catch (cause) {
         if (controller.signal.aborted) return;
+        const status = getLogHttpStatus(cause);
+        const retryable =
+          cause instanceof TypeError ||
+          status === 408 ||
+          status === 429 ||
+          (status !== undefined && status >= 500);
         setResult((previous) => ({
           identity,
           pod: previous.identity === identity ? previous.pod : undefined,
-          missing: true,
+          missing: !(
+            retryable &&
+            previous.identity === identity &&
+            previous.pod &&
+            !previous.missing
+          ),
           loading: false,
           error: cause instanceof Error ? cause.message : String(cause),
         }));
+        if (polling && retryable) timer = setTimeout(refresh, 3000);
       }
     };
     void refresh();

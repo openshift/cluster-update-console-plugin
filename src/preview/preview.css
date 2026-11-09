@@ -1,0 +1,23 @@
+.cluster-update-plugin__preview-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pf-t--global--spacer--lg);
+  padding: var(--pf-t--global--spacer--md) var(--pf-t--global--spacer--lg);
+  background: var(--pf-t--global--background--color--primary--default);
+  border-block-end: var(--pf-t--global--border--width--regular) solid
+    var(--pf-t--global--border--color--default);
+}
+
+.cluster-update-plugin__preview-scenario {
+  display: flex;
+  align-items: center;
+  gap: var(--pf-t--global--spacer--sm);
+  margin-inline-start: auto;
+}
+
+.cluster-update-plugin__preview-content {
+  min-height: 100vh;
+  padding-block: var(--pf-t--global--spacer--lg);
+  background: var(--pf-t--global--background--color--secondary--default);
+}

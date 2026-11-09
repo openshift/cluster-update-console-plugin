@@ -36,7 +36,8 @@ const read = async (url: string, signal: AbortSignal, optional = false) => {
   } catch (cause) {
     const status = getLogHttpStatus(cause);
     if (optional && status === 404) return undefined;
-    if (typeof status === 'number') throw new Error(`HTTP ${status}`);
+    if (typeof status === 'number')
+      throw Object.assign(new Error(`HTTP ${status}`), { code: status });
     throw cause;
   }
 };

@@ -16,6 +16,7 @@ export const k8sPatch = jest.fn();
 export const k8sDelete = jest.fn();
 export const consoleFetch = jest.fn();
 export const useK8sWatchResource = jest.fn();
+export const useAccessReview = jest.fn(() => [true, false]);
 
 export type K8sModel = {
   apiGroup?: string;

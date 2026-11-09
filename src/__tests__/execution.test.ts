@@ -51,6 +51,14 @@ const claimResponses = (pods: unknown[] = [pod]) => {
 
 beforeEach(() => fetchMock.mockReset());
 
+it('preserves the HTTP status of temporary discovery errors for retry decisions', async () => {
+  fetchMock.mockResolvedValueOnce(response({}, 503));
+  await expect(discoverExecutionPod(run, new AbortController().signal)).rejects.toMatchObject({
+    code: 503,
+    message: 'HTTP 503',
+  });
+});
+
 it('resolves a differently named pod through exact owner UIDs and uses workload container/start', async () => {
   claimResponses();
   await expect(discoverExecutionPod(run, new AbortController().signal)).resolves.toEqual({

@@ -1,7 +1,7 @@
 /** @jest-environment jsdom */
 import * as React from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { AnalysisLogs, ExecutionLogs } from '../components/shared/ExecutionLogs';
+import { AnalysisLogs, ExecutionLogs, VerificationLogs } from '../components/shared/ExecutionLogs';
 import { useStepSandbox } from '../hooks/useExecutionSandbox';
 import { useRetainedLogs } from '../hooks/useRetainedLogs';
 import { useSandboxLogStream } from '../hooks/useSandboxLogStream';
@@ -73,6 +73,82 @@ it('offers a separate analysis viewer and follows only while analysis is active'
   expect(retained.mock.calls.at(-1)?.slice(1)).toEqual([true, 'analysis']);
   expect(stream.mock.calls.at(-1)?.[2]).toBe(false);
 });
+
+it('opens verification logs on demand, streams only verification, and stops when collapsed', () => {
+  const run = makeRun('True');
+  run.status!.conditions!.push(
+    {
+      type: 'Executed',
+      status: 'True',
+      reason: 'Succeeded',
+      message: '',
+      lastTransitionTime: '2026-10-29T12:00:00Z',
+    },
+    {
+      type: 'Verified',
+      status: 'Unknown',
+      reason: 'Running',
+      message: '',
+      lastTransitionTime: '2026-10-29T12:01:00Z',
+    },
+  );
+  stream.mockReturnValue({
+    lines: ['verification output'],
+    loading: false,
+    state: 'streaming',
+    retry: jest.fn(),
+  });
+  render(<VerificationLogs run={run} />);
+  expect(stream.mock.calls.at(-1)?.[1]).toBe(false);
+  expect(screen.queryByRole('textbox', { name: 'Search verification logs' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'View verification logs' }));
+  expect(sandbox.mock.calls.at(-1)?.slice(1)).toEqual([true, 'verification']);
+  expect(stream.mock.calls.at(-1)?.slice(1)).toEqual([true, true, 'start']);
+  expect(retained.mock.calls.at(-1)?.slice(1)).toEqual([false, 'verification']);
+  expect(screen.getByText('Streaming verification logs')).toBeTruthy();
+  expect(screen.getByText('verification output')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Hide verification logs' }));
+  expect(stream.mock.calls.at(-1)?.[1]).toBe(false);
+  expect(screen.queryByRole('textbox', { name: 'Search verification logs' })).toBeNull();
+});
+
+it.each(['True', 'False'] as const)(
+  'loads retained verification history after completion or failure (%s)',
+  (status) => {
+    const run = makeRun('True');
+    run.status!.conditions!.push(
+      {
+        type: 'Executed',
+        status: 'True',
+        reason: 'Succeeded',
+        message: '',
+        lastTransitionTime: '2026-10-29T12:00:00Z',
+      },
+      {
+        type: 'Verified',
+        status,
+        reason: 'Completed',
+        message: 'Verification detail',
+        lastTransitionTime: '2026-10-29T12:01:00Z',
+      },
+    );
+    retained.mockReturnValue({
+      available: true,
+      loading: false,
+      lines: ['retained verification'],
+      retry: jest.fn(),
+    });
+    sandbox.mockReturnValue({ loading: false, missing: true, retry: jest.fn() });
+    render(<VerificationLogs run={run} />);
+    fireEvent.click(screen.getByRole('button', { name: 'View verification logs' }));
+    expect(retained.mock.calls.at(-1)?.slice(1)).toEqual([true, 'verification']);
+    expect(screen.getByText('Retained verification history')).toBeTruthy();
+    expect(screen.getByText('retained verification')).toBeTruthy();
+    expect(screen.getByText('Verification logs loaded')).toBeTruthy();
+    if (status === 'False') expect(screen.getByText('Verification detail')).toBeTruthy();
+    expect(screen.queryByText('Execution failed')).toBeNull();
+  },
+);
 
 it('shows waiting, missing, connection errors and failed-analysis status distinctly', () => {
   sandbox.mockReturnValue({ loading: false, missing: true, retry: jest.fn() });

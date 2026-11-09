@@ -87,6 +87,34 @@ describe('execution-time discovery', () => {
   beforeEach(() => jest.useFakeTimers());
   afterEach(() => jest.useRealTimers());
 
+  it('recovers discovery after temporary API failures without interrupting an existing pod stream', async () => {
+    discover
+      .mockRejectedValueOnce(Object.assign(new Error('HTTP 503'), { code: 503 }))
+      .mockResolvedValueOnce(pod)
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValue(pod);
+    const hook = renderHook(() => useExecutionSandbox(executingRun(), true));
+    await advance(0);
+    expect(hook.result.current).toMatchObject({ error: 'HTTP 503', missing: true });
+    await advance(3000);
+    expect(hook.result.current).toMatchObject({ pod, missing: false, error: undefined });
+    await advance(3000);
+    expect(hook.result.current).toMatchObject({ pod, missing: false, error: 'Failed to fetch' });
+    await advance(3000);
+    expect(hook.result.current).toMatchObject({ pod, missing: false, error: undefined });
+    hook.unmount();
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it('does not retry forbidden discovery requests automatically', async () => {
+    discover.mockRejectedValue(Object.assign(new Error('HTTP 403'), { code: 403 }));
+    const hook = renderHook(() => useExecutionSandbox(executingRun(), true));
+    await advance(30000);
+    expect(discover).toHaveBeenCalledTimes(1);
+    expect(hook.result.current).toMatchObject({ error: 'HTTP 403', missing: true });
+    hook.unmount();
+  });
+
   it('polls missing, ready, missing and replacement pods at three-second intervals', async () => {
     const replacement = { ...pod, podUid: 'replacement-uid' };
     let finish!: (value: typeof pod) => void;

@@ -1,106 +1,108 @@
 import * as React from 'react';
-import { k8sPatch } from '@openshift-console/dynamic-plugin-sdk';
+import { k8sPatch, useAccessReview } from '@openshift-console/dynamic-plugin-sdk';
+import { useTranslation } from 'react-i18next';
 import { LightspeedAgenticRunApproval, AgenticRunApprovalModel } from '../models/agenticrun';
 import { getErrorMessage } from '../utils/error';
+import { I18N_NAMESPACE, LIGHTSPEED_NAMESPACE } from '../utils/constants';
 
 export type ApprovalStageType = 'Analysis' | 'Execution' | 'Verification' | 'Escalation';
 
+const STAGE_FIELDS = {
+  Analysis: 'analysis',
+  Execution: 'execution',
+  Verification: 'verification',
+  Escalation: 'escalation',
+} as const;
+
 export const useApprovalActions = (approval?: LightspeedAgenticRunApproval) => {
+  const { t } = useTranslation(I18N_NAMESPACE);
   const [inProgress, setInProgress] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const mutationPending = React.useRef(false);
+  const [canApprove, canApproveLoading] = useAccessReview({
+    group: 'agentic.openshift.io',
+    resource: 'agenticrunapprovals',
+    verb: 'patch',
+    namespace: approval?.metadata?.namespace ?? LIGHTSPEED_NAMESPACE,
+  });
 
-  const approvalRef = React.useRef(approval);
-  approvalRef.current = approval;
-
-  const approveStage = React.useCallback(
-    async (
-      stageType: ApprovalStageType,
-      options?: { optionIndex?: number; maxAttempts?: number },
-    ) => {
-      const currentApproval = approvalRef.current;
-      if (!currentApproval) return false;
-      setInProgress(true);
+  const decide = React.useCallback(
+    async (stageType: ApprovalStageType, denied: boolean, options?: { optionIndex?: number }) => {
+      if (mutationPending.current) return false;
       setError(null);
+      if (!approval) {
+        setError(t('Approval resource is not available yet.'));
+        return false;
+      }
+      if (!canApprove || canApproveLoading) {
+        setError(t('You do not have permission to approve or reject this run.'));
+        return false;
+      }
+      if (approval.spec?.stages?.some((stage) => stage.type === stageType)) {
+        setError(
+          t('This stage already has a decision. Refresh the run to see its current status.'),
+        );
+        return false;
+      }
+      const stage = {
+        type: stageType,
+        decision: denied ? 'Denied' : 'Approved',
+        [STAGE_FIELDS[stageType]]:
+          stageType === 'Execution' && !denied && options?.optionIndex !== undefined
+            ? { option: options.optionIndex }
+            : {},
+      };
+      const path = approval.spec?.stages?.length
+        ? '/spec/stages/-'
+        : approval.spec
+          ? '/spec/stages'
+          : '/spec';
+      const value =
+        path === '/spec/stages/-' ? stage : path === '/spec/stages' ? [stage] : { stages: [stage] };
+      mutationPending.current = true;
+      setInProgress(true);
       try {
-        const existingStages = currentApproval.spec?.stages ?? [];
-        if (existingStages.some((s) => s.type === stageType)) return true;
-
-        const stageEntry: Record<string, unknown> = {
-          type: stageType,
-          decision: 'Approved',
-        };
-
-        if (stageType === 'Analysis') {
-          stageEntry.analysis = { agent: 'default' };
-        } else if (stageType === 'Execution') {
-          stageEntry.execution = {
-            agent: 'default',
-            ...(options?.optionIndex !== undefined && { option: options.optionIndex }),
-            ...(options?.maxAttempts !== undefined && { maxAttempts: options.maxAttempts }),
-          };
-        } else if (stageType === 'Verification') {
-          stageEntry.verification = { agent: 'default' };
-        } else if (stageType === 'Escalation') {
-          stageEntry.escalation = { agent: 'default' };
-        }
-
-        const newStages = [...existingStages, stageEntry];
-        const hasSpec = currentApproval.spec?.stages !== undefined;
-
         await k8sPatch({
-          data: [
-            hasSpec
-              ? { op: 'replace', path: '/spec/stages', value: newStages }
-              : { op: 'add', path: '/spec', value: { stages: newStages } },
-          ],
           model: AgenticRunApprovalModel,
-          resource: currentApproval,
+          resource: approval,
+          data: [
+            ...(approval.metadata?.resourceVersion
+              ? [
+                  {
+                    op: 'test',
+                    path: '/metadata/resourceVersion',
+                    value: approval.metadata.resourceVersion,
+                  },
+                ]
+              : []),
+            { op: 'add', path, value },
+          ],
         });
         return true;
       } catch (err) {
         setError(getErrorMessage(err));
         return false;
       } finally {
+        mutationPending.current = false;
         setInProgress(false);
       }
     },
-    [],
+    [approval, canApprove, canApproveLoading, t],
   );
 
-  const denyStage = React.useCallback(async (stageType: ApprovalStageType) => {
-    const currentApproval = approvalRef.current;
-    if (!currentApproval) return false;
-    setInProgress(true);
-    setError(null);
-    try {
-      const existingStages = currentApproval.spec?.stages ?? [];
-      const stageEntry = { type: stageType, decision: 'Denied' };
-      const newStages = [...existingStages, stageEntry];
-      const hasSpec = currentApproval.spec?.stages !== undefined;
-
-      await k8sPatch({
-        data: [
-          hasSpec
-            ? { op: 'replace', path: '/spec/stages', value: newStages }
-            : { op: 'add', path: '/spec', value: { stages: newStages } },
-        ],
-        model: AgenticRunApprovalModel,
-        resource: currentApproval,
-      });
-      return true;
-    } catch (err) {
-      setError(getErrorMessage(err));
-      return false;
-    } finally {
-      setInProgress(false);
-    }
-  }, []);
+  const approveStage = React.useCallback(
+    (stage: ApprovalStageType, options?: { optionIndex?: number }) => decide(stage, false, options),
+    [decide],
+  );
+  const denyStage = React.useCallback((stage: ApprovalStageType) => decide(stage, true), [decide]);
 
   return {
     approveStage,
     denyStage,
-    clearError: React.useCallback(() => setError(null), []),
     error,
+    clearError: React.useCallback(() => setError(null), []),
     inProgress,
+    canApprove,
+    canApproveLoading,
   };
 };

@@ -40,7 +40,6 @@ const EMPTY_RESULT: LogResult = {
   state: 'idle',
   truncated: false,
 };
-const MAX_FAILURES = 5;
 const TIMESTAMP = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:\d{2})(?:\s|$)/;
 
 const timestampOf = (line: string): { value: string; key: string } | undefined => {
@@ -119,7 +118,6 @@ export const useSandboxLogStream = (
     let boundaryKey = currentCursor.boundaryKey;
     const boundaryCounts = currentCursor.counts;
     let boundaryCharacters = currentCursor.characters;
-    let failures = 0;
     let delay = 1000;
     const update = (change: Partial<LogResult>) => {
       if (!cancelled) {
@@ -302,7 +300,6 @@ export const useSandboxLogStream = (
             update({ loading: false, error: undefined, state: 'complete' });
             return;
           }
-          failures = 0;
           update({ loading: false, error: undefined, state: 'reconnecting' });
         } catch (caught) {
           if (cancelled) {
@@ -315,8 +312,7 @@ export const useSandboxLogStream = (
               : typeof status === 'number'
                 ? responseError(status)
                 : new LogRequestError(t('Unable to connect to pod logs.'), true);
-          failures = receivedData ? 1 : failures + 1;
-          const retrying = streaming && failure.retryable && failures < MAX_FAILURES;
+          const retrying = streaming && failure.retryable;
           update({
             loading: false,
             error: failure.message,

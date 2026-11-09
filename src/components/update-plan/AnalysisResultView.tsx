@@ -6,9 +6,6 @@ import {
   CardBody,
   CardTitle,
   Content,
-  ExpandableSection,
-  Flex,
-  FlexItem,
   Icon,
   Label,
   Stack,
@@ -32,11 +29,14 @@ import {
   SEVERITY_LABELS,
 } from '../../models/agenticrun';
 import { I18N_NAMESPACE } from '../../utils/constants';
-import DiagnosisCard from './DiagnosisCard';
-import RemediationPlanView from './RemediationPlanView';
+import { MarkdownContent } from '../shared/MarkdownContent';
+import { RemediationOptionCard } from './lightspeed/RemediationOptionCard';
 
 type AnalysisResultViewProps = {
   analysisData: AnalysisData;
+  analysisLogs?: React.ReactNode;
+  selectedOptionIndex?: number;
+  onSelectOption?: (index: number) => void;
 };
 
 const checkStatusIcon = (status: string) => {
@@ -81,42 +81,16 @@ const checkStatusColor = (status: string): 'green' | 'orange' | 'red' | 'blue' =
   }
 };
 
-const getRiskColor = (
-  risk?: 'Low' | 'Medium' | 'High' | 'Critical',
-): 'green' | 'orange' | 'red' | 'grey' => {
-  switch (risk) {
-    case 'Low':
-      return 'green';
-    case 'Medium':
-      return 'orange';
-    case 'High':
-    case 'Critical':
-      return 'red';
-    default:
-      return 'grey';
-  }
-};
-
-const getConfidenceColor = (
-  confidence?: 'Low' | 'Medium' | 'High',
-): 'red' | 'orange' | 'green' | 'grey' => {
-  switch (confidence) {
-    case 'High':
-      return 'green';
-    case 'Medium':
-      return 'orange';
-    case 'Low':
-      return 'red';
-    default:
-      return 'grey';
-  }
-};
-
-const AnalysisResultView: React.FC<AnalysisResultViewProps> = ({ analysisData }) => {
+const AnalysisResultView: React.FC<AnalysisResultViewProps> = ({
+  analysisData,
+  analysisLogs,
+  selectedOptionIndex,
+  onSelectOption,
+}) => {
   const { t } = useTranslation(I18N_NAMESPACE);
   const [expandedOptions, setExpandedOptions] = React.useState<Set<number>>(new Set([0]));
 
-  const { options, components, analysisData: legacyData } = analysisData;
+  const { options, components, diagnosis, analysisData: legacyData } = analysisData;
 
   // Extract all available data upfront
   const hasRemediationMode = options.some(hasDefaultModeData);
@@ -135,6 +109,7 @@ const AnalysisResultView: React.FC<AnalysisResultViewProps> = ({ analysisData })
 
   // Check if we have any data to display
   const hasAnyData =
+    diagnosis ||
     hasRemediationMode ||
     readinessSummary ||
     findings.length > 0 ||
@@ -142,7 +117,14 @@ const AnalysisResultView: React.FC<AnalysisResultViewProps> = ({ analysisData })
     legacyData;
 
   if (!hasAnyData) {
-    return <Content component="p">{t('Analysis data not available.')}</Content>;
+    return (
+      <Stack hasGutter>
+        <StackItem>
+          <Content component="p">{t('Analysis data not available.')}</Content>
+        </StackItem>
+        {analysisLogs && <StackItem>{analysisLogs}</StackItem>}
+      </Stack>
+    );
   }
 
   return (
@@ -325,6 +307,20 @@ const AnalysisResultView: React.FC<AnalysisResultViewProps> = ({ analysisData })
         </StackItem>
       )}
 
+      {diagnosis && (
+        <StackItem>
+          <Card>
+            <CardTitle>{t('Root cause analysis')}</CardTitle>
+            <CardBody>
+              <MarkdownContent text={diagnosis.rootCause} />
+              <MarkdownContent text={diagnosis.summary} />
+            </CardBody>
+          </Card>
+        </StackItem>
+      )}
+
+      {analysisLogs && <StackItem>{analysisLogs}</StackItem>}
+
       {/* Remediation Mode: Diagnosis and Remediation Plans */}
       {hasRemediationMode &&
         options.map((option, idx) => {
@@ -346,49 +342,17 @@ const AnalysisResultView: React.FC<AnalysisResultViewProps> = ({ analysisData })
 
           return (
             <StackItem key={idx}>
-              <ExpandableSection
-                toggleContent={
-                  <Flex alignItems={{ default: 'alignItemsCenter' }} gap={{ default: 'gapSm' }}>
-                    <FlexItem>
-                      <strong>
-                        {option.title || t('Remediation Plan {{index}}', { index: idx + 1 })}
-                      </strong>
-                    </FlexItem>
-                    {option.remediationPlan?.risk && (
-                      <FlexItem>
-                        <Label color={getRiskColor(option.remediationPlan.risk)} isCompact>
-                          {option.remediationPlan.risk}
-                        </Label>
-                      </FlexItem>
-                    )}
-                    {option.diagnosis?.confidence && (
-                      <FlexItem>
-                        <Label color={getConfidenceColor(option.diagnosis.confidence)} isCompact>
-                          {t('{{confidence}} confidence', {
-                            confidence: option.diagnosis.confidence,
-                          })}
-                        </Label>
-                      </FlexItem>
-                    )}
-                  </Flex>
-                }
+              <RemediationOptionCard
+                option={option}
+                index={idx}
                 isExpanded={isExpanded}
-                onToggle={togglePanel}
-                isIndented
-              >
-                <Stack hasGutter>
-                  {option.diagnosis && (
-                    <StackItem>
-                      <DiagnosisCard diagnosis={option.diagnosis} />
-                    </StackItem>
-                  )}
-                  {option.remediationPlan && (
-                    <StackItem>
-                      <RemediationPlanView option={option} optionIndex={idx} />
-                    </StackItem>
-                  )}
-                </Stack>
-              </ExpandableSection>
+                onToggleExpand={togglePanel}
+                isSelected={selectedOptionIndex === idx}
+                isRecommended={idx === 0 && !!onSelectOption && !!option.remediationPlan}
+                onSelect={
+                  onSelectOption && option.remediationPlan ? () => onSelectOption(idx) : undefined
+                }
+              />
             </StackItem>
           );
         })}

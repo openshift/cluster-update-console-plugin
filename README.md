@@ -69,6 +69,20 @@ The plugin dev server runs on port 9001 with CORS enabled. The console bridge ru
 
 ### Testing with mock data
 
+For a standalone interactive preview using the real Cluster Update page and local
+sample data, run `yarn preview` and open <http://127.0.0.1:9002>. The preview stage
+selector covers analysis, approval, execution, verification, completion, and failure states.
+Approving a sample plan simulates execution and streams sample logs. After execution,
+**Approve verification** starts the sample verification stage. Re-analysis,
+approval, and rejection affect only the preview; the preview SDK makes no cluster
+requests. Use **Reset preview** to start again.
+
+The **Update verification** section displays the run's verification stage and logs.
+When manual approval is required, its **Approve verification** button approves the
+`Verification` stage on `AgenticRunApproval`. The Lightspeed operator launches the
+agent configured in `AgenticRun.spec.verification` in a dedicated sandbox pod;
+the console plugin displays its progress and does not execute verification commands.
+
 Without the Lightspeed agentic operator installed, Proposals have no analysis data. To test with mock data:
 
 1. Verify CVO-created Proposals exist:

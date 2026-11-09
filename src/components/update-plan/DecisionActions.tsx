@@ -1,6 +1,5 @@
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
-import { k8sPatch } from '@openshift-console/dynamic-plugin-sdk';
 import {
   Alert,
   Button,
@@ -10,304 +9,164 @@ import {
   Content,
   Flex,
   FlexItem,
-  FormSelect,
-  FormSelectOption,
-  Label,
   Modal,
   ModalBody,
   ModalFooter,
-  ModalVariant,
+  ModalHeader,
   Stack,
   StackItem,
 } from '@patternfly/react-core';
-import { CheckIcon } from '@patternfly/react-icons';
-import {
-  LightspeedAgenticRun,
-  LightspeedAgenticRunApproval,
-  AnalysisData,
-  hasDefaultModeData,
-} from '../../models/agenticrun';
-import { ClusterVersion, ClusterVersionModel } from '../../models/clusterversion';
-import { I18N_NAMESPACE, LABELS } from '../../utils/constants';
-import { unsanitizeVersion } from '../../utils/version';
-import { getErrorMessage } from '../../utils/error';
+import { LightspeedAgenticRun, RemediationOption } from '../../models/agenticrun';
+import { I18N_NAMESPACE } from '../../utils/constants';
 import { useApprovalActions } from '../../hooks/useApprovalActions';
 import { useAgenticRunApprovals } from '../../hooks/useAgenticRuns';
 
 type DecisionActionsProps = {
   agenticRun: LightspeedAgenticRun;
-  clusterVersion: ClusterVersion;
-  analysisData: AnalysisData;
+  selectedOption?: RemediationOption;
+  selectedOptionIndex?: number;
 };
-
-const CONFIRM_TIMEOUT_MS = 5000;
 
 const DecisionActions: React.FC<DecisionActionsProps> = ({
   agenticRun,
-  clusterVersion,
-  analysisData,
+  selectedOption,
+  selectedOptionIndex,
 }) => {
   const { t } = useTranslation(I18N_NAMESPACE);
-
-  // Find the AgenticRunApproval matching this run (same name/namespace)
   const [approvals] = useAgenticRunApprovals();
-  const approval = React.useMemo(
-    () =>
-      (approvals ?? []).find(
-        (a: LightspeedAgenticRunApproval) =>
-          a.metadata?.name === agenticRun.metadata?.name &&
-          a.metadata?.namespace === agenticRun.metadata?.namespace,
-      ),
-    [approvals, agenticRun.metadata?.name, agenticRun.metadata?.namespace],
+  const approval = (approvals ?? []).find(
+    (a) =>
+      a.metadata?.name === agenticRun.metadata?.name &&
+      a.metadata?.namespace === agenticRun.metadata?.namespace,
   );
+  const { approveStage, denyStage, error, clearError, inProgress, canApprove, canApproveLoading } =
+    useApprovalActions(approval);
+  const [confirm, setConfirm] = React.useState<'approve' | 'deny'>();
+  const decided = approval?.spec?.stages?.some((stage) => stage.type === 'Execution');
+  const disabled = inProgress || !approval || !canApprove || canApproveLoading || decided;
+  const canExecute = selectedOptionIndex !== undefined && !!selectedOption?.remediationPlan;
 
-  const { approveStage, denyStage, error, clearError, inProgress } = useApprovalActions(approval);
+  const submit = async () => {
+    if (disabled) return;
+    if (confirm === 'approve' && !canExecute) return;
+    const ok =
+      confirm === 'approve'
+        ? await approveStage('Execution', { optionIndex: selectedOptionIndex })
+        : await denyStage('Execution');
+    if (ok) setConfirm(undefined);
+  };
 
-  // Option selection (for multiple remediation plans)
-  const remediationOptions = React.useMemo(
-    () => analysisData.options.filter((opt) => hasDefaultModeData(opt) && opt.remediationPlan),
-    [analysisData.options],
-  );
-  const [selectedOptionIndex, setSelectedOptionIndex] = React.useState(0);
-  const selectedOption = remediationOptions[selectedOptionIndex];
-
-  const [confirmingApprove, setConfirmingApprove] = React.useState(false);
-  const [confirmingDeny, setConfirmingDeny] = React.useState(false);
-  const [showIrreversibilityModal, setShowIrreversibilityModal] = React.useState(false);
-  const [upgradeError, setUpgradeError] = React.useState<string | null>(null);
-  const approveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const denyTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  React.useEffect(() => {
-    return () => {
-      if (approveTimerRef.current) clearTimeout(approveTimerRef.current);
-      if (denyTimerRef.current) clearTimeout(denyTimerRef.current);
-    };
-  }, []);
-
-  const executeApproval = React.useCallback(async () => {
-    if (approveTimerRef.current) clearTimeout(approveTimerRef.current);
-    setConfirmingApprove(false);
-    setUpgradeError(null);
-
-    const approved = await approveStage('Execution', { optionIndex: selectedOptionIndex });
-    if (!approved) return;
-
-    const rawTarget = agenticRun.metadata?.labels?.[LABELS.targetVersion] ?? '';
-    const targetVersion = rawTarget ? unsanitizeVersion(rawTarget) : '';
-    const release = clusterVersion.status?.availableUpdates?.find(
-      (u) => u.version === targetVersion,
-    );
-
-    if (!release) {
-      setUpgradeError(
-        t('Target version {{version}} not found in available updates', {
-          version: targetVersion,
-        }),
-      );
-      return;
-    }
-
-    try {
-      const hasDesiredUpdate = clusterVersion.spec?.desiredUpdate !== undefined;
-      await k8sPatch({
-        data: [
-          {
-            op: hasDesiredUpdate ? 'replace' : 'add',
-            path: '/spec/desiredUpdate',
-            value: { version: release.version, image: release.image },
-          },
-        ],
-        model: ClusterVersionModel,
-        resource: clusterVersion,
-      });
-      // Successfully initiated upgrade
-    } catch (err) {
-      setUpgradeError(getErrorMessage(err));
-    }
-  }, [approveStage, selectedOptionIndex, agenticRun, clusterVersion, t]);
-
-  const handleApproveClick = React.useCallback(async () => {
-    if (confirmingApprove) {
-      if (selectedOption?.remediationPlan?.reversible === 'Irreversible') {
-        setShowIrreversibilityModal(true);
-      } else {
-        await executeApproval();
-      }
-    } else {
-      setConfirmingApprove(true);
-      setConfirmingDeny(false);
-      if (denyTimerRef.current) clearTimeout(denyTimerRef.current);
-      approveTimerRef.current = setTimeout(() => {
-        setConfirmingApprove(false);
-      }, CONFIRM_TIMEOUT_MS);
-    }
-  }, [confirmingApprove, selectedOption, executeApproval]);
-
-  const handleIrreversibilityConfirm = React.useCallback(async () => {
-    setShowIrreversibilityModal(false);
-    await executeApproval();
-  }, [executeApproval]);
-
-  const handleDenyClick = React.useCallback(async () => {
-    if (confirmingDeny) {
-      if (denyTimerRef.current) clearTimeout(denyTimerRef.current);
-      setConfirmingDeny(false);
-      setUpgradeError(null);
-      const denied = await denyStage('Execution');
-      if (!denied) return;
-    } else {
-      setConfirmingDeny(true);
-      setConfirmingApprove(false);
-      if (approveTimerRef.current) clearTimeout(approveTimerRef.current);
-      denyTimerRef.current = setTimeout(() => {
-        setConfirmingDeny(false);
-      }, CONFIRM_TIMEOUT_MS);
-    }
-  }, [confirmingDeny, denyStage]);
-
-  const hasMultipleOptions = remediationOptions.length > 1;
-  const isApproveDisabled = inProgress || !approval || !selectedOption;
-
-  const displayError = error || upgradeError;
+  if (decided) return null;
 
   return (
     <>
       <Card className="cluster-update-plugin__decision-card">
-        <CardTitle>
-          <span className="cluster-update-plugin__decision-title-text">
-            {t('Awaiting Decision')}
-          </span>
-          <Label color="orange" isCompact className="cluster-update-plugin__decision-badge">
-            {t('Pending')}
-          </Label>
-        </CardTitle>
+        <CardTitle>{t('Awaiting decision')}</CardTitle>
         <CardBody>
           <Stack hasGutter>
             <StackItem>
-              <Content component="p" className="cluster-update-plugin__decision-description">
+              <Content component="p">
                 {t(
-                  'Plan ready — approving will start the cluster upgrade. You will be redirected to the cluster settings page to monitor progress.',
+                  'Select and review a remediation plan. Approval allows the agent to execute that plan; a platform update starts only if the plan requests one.',
                 )}
               </Content>
             </StackItem>
-
-            {hasMultipleOptions && (
+            {!canApproveLoading && !canApprove && (
               <StackItem>
-                <Content component="p">
-                  <strong>{t('Select remediation plan:')}</strong>
-                </Content>
-                <FormSelect
-                  value={selectedOptionIndex.toString()}
-                  onChange={(_event, value) => setSelectedOptionIndex(parseInt(value, 10))}
-                  aria-label={t('Select remediation option')}
-                  style={{ maxWidth: '400px' }}
-                >
-                  {remediationOptions.map((opt, idx) => (
-                    <FormSelectOption
-                      key={idx}
-                      value={idx.toString()}
-                      label={opt.title || t('Option {{index}}', { index: idx + 1 })}
-                    />
-                  ))}
-                </FormSelect>
+                <Alert
+                  isInline
+                  variant="info"
+                  title={t('You do not have permission to approve or reject this run.')}
+                />
               </StackItem>
             )}
-
             <StackItem>
-              <Flex
-                gap={{ default: 'gapLg' }}
-                alignItems={{ default: 'alignItemsCenter' }}
-                className="cluster-update-plugin__decision-action-group"
-              >
+              <Flex>
                 <FlexItem>
                   <Button
                     variant="primary"
-                    icon={<CheckIcon />}
-                    onClick={handleApproveClick}
-                    isDisabled={isApproveDisabled}
-                    isLoading={inProgress && confirmingApprove}
+                    isDisabled={disabled || !canExecute}
+                    onClick={() => {
+                      clearError();
+                      setConfirm('approve');
+                    }}
                   >
-                    {confirmingApprove ? t('Confirm approve & upgrade') : t('Approve & upgrade')}
+                    {t('Approve plan')}
                   </Button>
                 </FlexItem>
                 <FlexItem>
                   <Button
                     variant="danger"
-                    onClick={handleDenyClick}
-                    isDisabled={inProgress || !approval}
-                    isLoading={inProgress && confirmingDeny}
+                    isDisabled={disabled}
+                    onClick={() => {
+                      clearError();
+                      setConfirm('deny');
+                    }}
                   >
-                    {confirmingDeny ? t('Confirm reject') : t('Reject plan')}
+                    {t('Reject plan')}
                   </Button>
                 </FlexItem>
               </Flex>
             </StackItem>
-
-            {displayError && (
+          </Stack>
+        </CardBody>
+      </Card>
+      <Modal
+        variant="small"
+        isOpen={!!confirm}
+        onClose={() => {
+          if (!inProgress) setConfirm(undefined);
+        }}
+        aria-labelledby="plan-decision-title"
+      >
+        <ModalHeader
+          title={confirm === 'approve' ? t('Approve remediation plan?') : t('Reject update plan?')}
+          labelId="plan-decision-title"
+        />
+        <ModalBody>
+          <Stack hasGutter>
+            <StackItem>
+              {confirm === 'approve'
+                ? t('The agent will execute {{title}}.', {
+                    title: selectedOption?.title || t('the selected plan'),
+                  })
+                : t(
+                    'Rejecting execution ends this agentic run. No remediation plan will be executed.',
+                  )}
+            </StackItem>
+            {confirm === 'approve' &&
+              selectedOption?.remediationPlan?.reversible === 'Irreversible' && (
+                <StackItem>
+                  <Alert isInline variant="warning" title={t('This remediation is irreversible')}>
+                    {t(
+                      'The selected remediation plan is irreversible. Once executed, it cannot be reversed.',
+                    )}
+                  </Alert>
+                </StackItem>
+              )}
+            {error && (
               <StackItem>
-                <Alert
-                  variant="danger"
-                  isInline
-                  title={t('Action failed')}
-                  className="cluster-update-plugin__decision-alert"
-                  actionClose={
-                    <Button
-                      variant="plain"
-                      onClick={() => {
-                        clearError();
-                        setUpgradeError(null);
-                      }}
-                      aria-label={t('Close')}
-                    >
-                      &times;
-                    </Button>
-                  }
-                >
-                  {displayError}
+                <Alert isInline variant="danger" title={t('Action failed')}>
+                  {error}
                 </Alert>
               </StackItem>
             )}
           </Stack>
-        </CardBody>
-      </Card>
-
-      {/* Irreversibility confirmation modal */}
-      {showIrreversibilityModal && (
-        <Modal
-          variant={ModalVariant.small}
-          title={t('Confirm irreversible action')}
-          isOpen={showIrreversibilityModal}
-          onClose={() => setShowIrreversibilityModal(false)}
-        >
-          <ModalBody>
-            <Stack hasGutter>
-              <StackItem>
-                <Alert variant="danger" isInline title={t('This action cannot be undone')}>
-                  {t(
-                    'The selected remediation plan is irreversible. Once executed, it cannot be reversed.',
-                  )}
-                </Alert>
-              </StackItem>
-              <StackItem>
-                <Content component="p">
-                  {t(
-                    'Please review the remediation plan carefully and ensure you understand the implications before proceeding.',
-                  )}
-                </Content>
-              </StackItem>
-            </Stack>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant="danger" onClick={handleIrreversibilityConfirm}>
-              {t('I understand, proceed')}
-            </Button>
-            <Button variant="link" onClick={() => setShowIrreversibilityModal(false)}>
-              {t('Cancel')}
-            </Button>
-          </ModalFooter>
-        </Modal>
-      )}
+        </ModalBody>
+        <ModalFooter>
+          <Button
+            variant={confirm === 'approve' ? 'primary' : 'danger'}
+            onClick={submit}
+            isLoading={inProgress}
+            isDisabled={disabled || (confirm === 'approve' && !canExecute)}
+          >
+            {confirm === 'approve' ? t('Confirm approval') : t('Confirm reject')}
+          </Button>
+          <Button variant="link" isDisabled={inProgress} onClick={() => setConfirm(undefined)}>
+            {t('Cancel')}
+          </Button>
+        </ModalFooter>
+      </Modal>
     </>
   );
 };

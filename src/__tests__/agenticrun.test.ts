@@ -31,7 +31,10 @@ describe('getPhaseDisplay', () => {
     expect(getPhaseDisplay('Completed')).toEqual({ color: 'green', label: 'Completed' });
     expect(getPhaseDisplay('Failed')).toEqual({ color: 'red', label: 'Failed' });
     expect(getPhaseDisplay('Denied')).toEqual({ color: 'red', label: 'Denied' });
-    expect(getPhaseDisplay('AwaitingSync')).toEqual({ color: 'teal', label: 'Awaiting Sync' });
+    expect(getPhaseDisplay('AwaitingSync')).toEqual({
+      color: 'teal',
+      label: 'Awaiting verification',
+    });
     expect(getPhaseDisplay('Escalating')).toEqual({ color: 'orange', label: 'Escalating' });
     expect(getPhaseDisplay('Escalated')).toEqual({ color: 'orangered', label: 'Escalated' });
   });

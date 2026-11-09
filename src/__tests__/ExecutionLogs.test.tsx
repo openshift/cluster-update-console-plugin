@@ -112,9 +112,11 @@ it('does no log I/O while collapsed and streams immediately without retention ga
   render(<ExecutionLogs run={run([{ type: 'Executed', status: 'Unknown' }])} />);
   expect(retained).toHaveBeenLastCalledWith('run-uid', false, 'execution');
   expect(stream.mock.calls.at(-1)?.[1]).toBe(false);
+  expect(screen.queryByPlaceholderText('Search execution logs')).toBeNull();
   fireEvent.click(screen.getByText('View execution logs'));
   expect(stream.mock.calls.at(-1)?.slice(1)).toEqual([true, true, '2026-10-27T01:00:00Z']);
   expect(retained).toHaveBeenLastCalledWith('run-uid', false, 'execution');
+  expect(screen.getByRole('textbox', { name: 'Search execution logs' })).toBeTruthy();
 });
 
 it('provides accessible search, navigation, reset and results-context labels', () => {
@@ -216,7 +218,8 @@ it('does not relabel successful execution as failed when verification fails', ()
       ])}
     />,
   );
-  expect(screen.getByText('Execution completed; see run status for verification')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'View execution logs' })).toBeTruthy();
+  expect(screen.queryByText('Execution completed; see run status for verification')).toBeNull();
   expect(screen.queryByText('Execution failed')).toBeNull();
 });
 

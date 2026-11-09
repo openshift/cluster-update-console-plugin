@@ -1,5 +1,6 @@
 **/node_modules
 **/dist
+/dist-preview
 **/.DS_Store
 .devcontainer/dev.env
 integration-tests/videos

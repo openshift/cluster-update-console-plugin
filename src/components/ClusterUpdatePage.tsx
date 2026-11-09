@@ -20,7 +20,6 @@ import { useClusterVersion } from '../hooks/useClusterVersion';
 import { useAgenticRuns } from '../hooks/useAgenticRuns';
 import { I18N_NAMESPACE, LABELS, TERMINAL_PHASES } from '../utils/constants';
 import { LightspeedAgenticRun, derivePhase } from '../models/agenticrun';
-import { ClusterVersion } from '../models/clusterversion';
 import UpdatePlanTab from './update-plan/UpdatePlanTab';
 import ActivePlansTab from './active-plans/ActivePlansTab';
 import './ClusterUpdatePage.css';
@@ -30,7 +29,7 @@ export default function ClusterUpdatePage() {
   const { t } = useTranslation(I18N_NAMESPACE);
   const [activeTab, setActiveTab] = React.useState<string | number>(0);
 
-  const [clusterVersion, cvLoaded, cvError] = useClusterVersion();
+  const [, cvLoaded, cvError] = useClusterVersion();
   const [agenticRunsRaw, agenticRunsLoaded, agenticRunsError] = useAgenticRuns();
 
   const agenticRunsAvailable = agenticRunsLoaded && !agenticRunsError;
@@ -98,10 +97,7 @@ export default function ClusterUpdatePage() {
             <Tab eventKey={0} title={<TabTitleText>{t('Updates plan')}</TabTitleText>}>
               <TabContent id="updates-plan-tab">
                 <TabContentBody>
-                  <UpdatePlanTab
-                    clusterVersion={clusterVersion as ClusterVersion}
-                    agenticRuns={agenticRuns}
-                  />
+                  <UpdatePlanTab agenticRuns={agenticRuns} />
                 </TabContentBody>
               </TabContent>
             </Tab>

@@ -1,16 +1,18 @@
 import { LightspeedAgenticRun, derivePhase } from '../models/agenticrun';
 
-export type LogPhase = 'analysis' | 'execution';
+export type LogPhase = 'analysis' | 'execution' | 'verification';
 
 export const getLogCondition = (run: LightspeedAgenticRun, phase: LogPhase) =>
   run.status?.conditions?.find(
-    (condition) => condition.type === (phase === 'analysis' ? 'Analyzed' : 'Executed'),
+    (condition) =>
+      condition.type ===
+      { analysis: 'Analyzed', execution: 'Executed', verification: 'Verified' }[phase],
   );
 
 export const isLogStreaming = (run: LightspeedAgenticRun, phase: LogPhase): boolean =>
-  phase === 'execution'
-    ? derivePhase(run) === 'Executing'
-    : getLogCondition(run, phase)?.status === 'Unknown' && derivePhase(run) !== 'Denied';
+  phase === 'analysis'
+    ? getLogCondition(run, phase)?.status === 'Unknown' && derivePhase(run) !== 'Denied'
+    : derivePhase(run) === (phase === 'execution' ? 'Executing' : 'Verifying');
 
 export const hasStepLogs = (run: LightspeedAgenticRun, phase: LogPhase): boolean => {
   const step = run.status?.steps?.[phase];
@@ -31,7 +33,11 @@ export const getStepLogIdentity = (run: LightspeedAgenticRun, phase: LogPhase): 
     run.metadata?.uid,
     run.metadata?.namespace,
     run.status?.steps?.[phase]?.sandbox,
-    phase === 'analysis' ? run.metadata?.generation : run.status?.steps?.execution?.retryCount,
+    phase === 'analysis'
+      ? run.metadata?.generation
+      : phase === 'execution'
+        ? run.status?.steps?.execution?.retryCount
+        : undefined,
     run.status?.steps?.[phase]?.conditions?.find(
       (condition) => condition.type === 'Started' && condition.status === 'True',
     )?.lastTransitionTime,

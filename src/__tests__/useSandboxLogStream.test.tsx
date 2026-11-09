@@ -410,23 +410,28 @@ describe('useSandboxLogStream', () => {
     expect(requestedParameters(1).get('sinceTime')).toBe(timestamp);
   });
 
-  it('bounds consecutive network failures and offers a manual retry', async () => {
+  it('keeps reconnecting beyond five network failures and recovers automatically', async () => {
     fetchLogs.mockRejectedValue(new Error('offline'));
     const { result } = renderHook(() => useSandboxLogStream(sandbox, true, true));
     await flush();
-    for (const milliseconds of [1000, 2000, 4000, 8000]) {
+    for (const milliseconds of [1000, 2000, 4000, 8000, 15000]) {
       await advance(milliseconds);
     }
-    expect(fetchLogs).toHaveBeenCalledTimes(5);
-    expect(result.current.state).toBe('error');
-    expect(jest.getTimerCount()).toBe(0);
-    const revision = result.current.revision;
-    fetchLogs.mockResolvedValue(logStream().response);
-    act(() => result.current.retry());
-    await flush();
     expect(fetchLogs).toHaveBeenCalledTimes(6);
-    expect(result.current.revision).toBe(revision + 1);
-    expect(result.current).toMatchObject({ error: undefined, loading: true, state: 'connecting' });
+    expect(result.current.state).toBe('reconnecting');
+    expect(jest.getTimerCount()).toBe(1);
+    const recovered = logStream();
+    fetchLogs.mockResolvedValue(recovered.response);
+    await advance(15000);
+    recovered.write('recovered live output\n');
+    await flush();
+    expect(fetchLogs).toHaveBeenCalledTimes(7);
+    expect(result.current).toMatchObject({
+      lines: ['recovered live output'],
+      error: undefined,
+      loading: false,
+      state: 'streaming',
+    });
   });
 
   it('caps empty-stream reconnect delays at 15 seconds', async () => {
@@ -440,6 +445,20 @@ describe('useSandboxLogStream', () => {
       await advance(1);
       expect(fetchLogs).toHaveBeenCalledTimes(calls + 1);
     }
+  });
+
+  it('permits manual retry after a permanent connection error', async () => {
+    fetchLogs.mockRejectedValue({ code: 403 });
+    const { result } = renderHook(() => useSandboxLogStream(sandbox, true, true));
+    await flush();
+    expect(result.current.state).toBe('error');
+    const revision = result.current.revision;
+    fetchLogs.mockResolvedValue(logStream().response);
+    act(() => result.current.retry());
+    await flush();
+    expect(fetchLogs).toHaveBeenCalledTimes(2);
+    expect(result.current.revision).toBe(revision + 1);
+    expect(result.current).toMatchObject({ error: undefined, loading: true, state: 'connecting' });
   });
 
   it('settles missing-body errors and does not retry snapshots', async () => {
