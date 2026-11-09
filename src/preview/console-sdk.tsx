@@ -20,15 +20,24 @@ export const useK8sWatchResource = <T,>({
   namespace?: string;
 }): [T, boolean, undefined] => {
   const { run, results, executionResults, approval, scenario } = usePreview();
-  const updating = [
-    'Executing',
-    'AwaitingVerification',
-    'Verifying',
-    'VerificationFailed',
-  ].includes(scenario);
-  const target = updating || scenario === 'Completed' ? '5.0.1' : '5.0.0-rc.6';
+  const updating = ['Executing', 'AwaitingVerification'].includes(scenario);
+  const target =
+    updating ||
+    [
+      'ReadyForVerification',
+      'Verifying',
+      'Completed',
+      'VerificationFailed',
+      'VerificationTimeout',
+    ].includes(scenario)
+      ? '5.0.1'
+      : '5.0.0-rc.6';
   const resources: Record<string, unknown> = {
     AgenticRun: [run],
+    Agent: {
+      metadata: { name: name ?? 'default' },
+      spec: { timeouts: { analysisSeconds: 300, executionSeconds: 600, verificationSeconds: 300 } },
+    },
     AnalysisResult: results,
     ExecutionResult: executionResults.find(
       (result) => result.metadata.name === name && result.metadata.namespace === namespace,

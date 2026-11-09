@@ -20,7 +20,9 @@ import { getLogCondition, isLogStreaming, LogPhase } from '../../utils/logPhase'
 import { useLogIdentity } from '../../hooks/useLogIdentity';
 import './ExecutionLogs.css';
 
-const StepLogs = ({ run, phase }: { run: LightspeedAgenticRun; phase: LogPhase }) => {
+type LogProps = { run: LightspeedAgenticRun; hideStageFailure?: boolean };
+
+const StepLogs = ({ run, phase, hideStageFailure }: LogProps & { phase: LogPhase }) => {
   const { t } = useTranslation(I18N_NAMESPACE);
   const [expanded, setExpanded] = useState(false);
   const [following, setFollowing] = useState(true);
@@ -132,7 +134,7 @@ const StepLogs = ({ run, phase }: { run: LightspeedAgenticRun; phase: LogPhase }
 
   return (
     <section aria-label={text.label} className="cluster-update-plugin__execution-logs">
-      {condition?.status === 'False' && condition.reason !== 'Skipped' && (
+      {!hideStageFailure && condition?.status === 'False' && condition.reason !== 'Skipped' && (
         <Alert isInline variant="danger" title={text.failed}>
           {condition.message}
         </Alert>
@@ -225,17 +227,21 @@ const StepLogs = ({ run, phase }: { run: LightspeedAgenticRun; phase: LogPhase }
   );
 };
 
-export const ExecutionLogs = ({ run }: { run: LightspeedAgenticRun }) => {
+export const ExecutionLogs = ({ run, hideStageFailure }: LogProps) => {
   const { identity } = useLogIdentity(run, 'execution');
-  return <StepLogs key={identity} run={run} phase="execution" />;
+  return (
+    <StepLogs key={identity} run={run} phase="execution" hideStageFailure={hideStageFailure} />
+  );
 };
 
-export const AnalysisLogs = ({ run }: { run: LightspeedAgenticRun }) => {
+export const AnalysisLogs = ({ run, hideStageFailure }: LogProps) => {
   const { identity } = useLogIdentity(run, 'analysis');
-  return <StepLogs key={identity} run={run} phase="analysis" />;
+  return <StepLogs key={identity} run={run} phase="analysis" hideStageFailure={hideStageFailure} />;
 };
 
-export const VerificationLogs = ({ run }: { run: LightspeedAgenticRun }) => {
+export const VerificationLogs = ({ run, hideStageFailure }: LogProps) => {
   const { identity } = useLogIdentity(run, 'verification');
-  return <StepLogs key={identity} run={run} phase="verification" />;
+  return (
+    <StepLogs key={identity} run={run} phase="verification" hideStageFailure={hideStageFailure} />
+  );
 };

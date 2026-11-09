@@ -17,6 +17,23 @@ jest.mock('react-router', () => ({
     <a href={to}>{children}</a>
   ),
 }));
+jest.mock('../hooks/useClusterVersion', () => ({
+  useClusterVersion: () => [
+    {
+      spec: {},
+      status: {
+        desired: { version: '5.0.1', image: 'target' },
+        history: [{ state: 'Completed', version: '5.0.1', image: 'target' }],
+        conditions: [
+          { type: 'Progressing', status: 'False' },
+          { type: 'Available', status: 'True' },
+        ],
+      },
+    },
+    true,
+    undefined,
+  ],
+}));
 jest.mock('../hooks/useAgenticRuns', () => ({
   useAgenticRunApprovals: () => [[]],
   useAnalysisResults: jest.fn(() => [[]]),
@@ -342,6 +359,48 @@ it('keeps analysis results available after execution failure and places logs bef
     }),
   ).toBeTruthy();
 });
+
+it('shows execution loading while provisioning and running, then removes it on completion', () => {
+  const run = fixture([
+    { type: 'Analyzed', status: 'True' },
+    { type: 'Executed', status: 'Unknown' },
+  ]);
+  const { rerender } = show(run);
+  expect(screen.getByRole('progressbar', { name: 'Executing' })).toBeTruthy();
+  expect(screen.getByText('Starting execution — waiting for agent sandbox...')).toBeTruthy();
+  run.status!.steps!.execution = { sandbox: { claimName: 'execution-sandbox', namespace: 'ns' } };
+  rerender(<UpdatePlanTab agenticRuns={[{ ...run }]} />);
+  expect(screen.getByText('AI agent is executing the selected upgrade plan...')).toBeTruthy();
+  expect(screen.getByText('Sandbox: execution-sandbox')).toBeTruthy();
+  run.status!.conditions![1].status = 'True';
+  rerender(<UpdatePlanTab agenticRuns={[{ ...run }]} />);
+  expect(screen.queryByRole('progressbar', { name: 'Executing' })).toBeNull();
+  expect(screen.queryByText('AI agent is executing the selected upgrade plan...')).toBeNull();
+});
+
+it.each(['True', 'False'] as const)(
+  'shows verification loading while provisioning and running, then removes it on %s',
+  (outcome) => {
+    const run = fixture([
+      { type: 'Analyzed', status: 'True' },
+      { type: 'Executed', status: 'True' },
+      { type: 'Verified', status: 'Unknown' },
+    ]);
+    const { rerender } = show(run);
+    expect(screen.getByRole('progressbar', { name: 'Verifying' })).toBeTruthy();
+    expect(screen.getByText('Starting verification — waiting for agent sandbox...')).toBeTruthy();
+    run.status!.steps!.verification = {
+      sandbox: { claimName: 'verification-sandbox', namespace: 'ns' },
+    };
+    rerender(<UpdatePlanTab agenticRuns={[{ ...run }]} />);
+    expect(screen.getByText('AI agent is verifying the cluster update...')).toBeTruthy();
+    expect(screen.getByText('Sandbox: verification-sandbox')).toBeTruthy();
+    run.status!.conditions![2].status = outcome;
+    rerender(<UpdatePlanTab agenticRuns={[{ ...run }]} />);
+    expect(screen.queryByRole('progressbar', { name: 'Verifying' })).toBeNull();
+    expect(screen.queryByText('AI agent is verifying the cluster update...')).toBeNull();
+  },
+);
 
 it('recovers the selected update path after its run is removed', () => {
   const first = fixture([{ type: 'Analyzed', status: 'True' }]);

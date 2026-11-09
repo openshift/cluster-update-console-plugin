@@ -1,42 +1,55 @@
 # Cluster Update Console Plugin
 
-An OpenShift Console dynamic plugin that provides an AI-driven cluster update experience. It integrates with [OpenShift Lightspeed](https://github.com/openshift/lightspeed-operator) proposals (via the `agentic.openshift.io` API) to assess upgrade readiness, show OLM operator compatibility, and let users approve or reject AI-generated update plans.
+An OpenShift Console dynamic plugin for reviewing and approving AI-generated cluster
+update plans through the `agentic.openshift.io` API.
 
 ## Features
 
-- **Update Plan** — Shows the active AI-generated update proposal with risk assessment, readiness checks, OLM operator compatibility, API deprecation checks, and approve/deny actions.
-- **Active Update Plans** — Lists all non-terminal Lightspeed proposals.
-- **Update History** — Shows the ClusterVersion update history.
-- **Graceful Degradation** — Works without the Lightspeed Proposal CRD installed. The Update History tab is always functional; AI features show a warning banner when unavailable.
+- **Updates plan** — Separate, collapsible analysis, execution, and verification
+  sections with scoped permissions, copyable commands, explicit plan selection,
+  approval/rejection, actions taken, and stage-specific logs.
+- **Active update plans** — Lists non-terminal AgenticRuns.
+- **Live cluster update progress** — Watches ClusterVersion, ClusterOperators,
+  MachineConfigPools, and rendered MachineConfigs. Reports operator and node
+  rollout counts independently of the agent's lifecycle. Routine node configuration
+  rollouts are distinguished from version updates.
+- **Upgrade readiness checklist** — Displays structured `ota_readiness_summary`
+  and `ota_finding` components from AnalysisResult. Shows blockers and required
+  actions first; passed checks are collapsed. This is an assessment snapshot,
+  refreshed by re-analysis, not a live readiness probe.
+- **Timeout guidance** — Explains stage timeouts and links to the effective Agent
+  CR, honoring approval overrides. Startup failures have separate guidance.
+- **Graceful degradation** — Native rollout status remains available without the
+  AgenticRun API. Missing permissions or resources are reported in the relevant view.
 
-## Analysis and execution logs
+## Stage logs and approvals
 
-The Update Plan tab provides separate **View analysis logs** and **View execution logs**
-sections. Each follows only its own step's pod while that step is running. Analysis
-logs remain available after analysis, including for analysis-only runs without an
-execution step; execution logs remain available through verification and escalation.
-After each step, its viewer prefers retained history when the
-`lightspeed-agentic-configuration` ConfigMap in `openshift-lightspeed` provides an
-`otel-admin-endpoint`; otherwise it falls back to the selected step's pod. Retained history
-is scoped to the AgenticRun UID and the selected `analysis` or `execution` phase and
-can include multiple attempts of that phase. The two viewers never combine phases.
-Pod logs are scoped to the resolved step pod and its start boundary. Analysis uses
-the active `Analyzed=Unknown` transition as an additional lower bound so that an old
-sandbox reference cannot expose earlier-attempt output while a revision is starting.
-Analysis generation, active-start and sandbox changes reset its viewer identity;
-ordinary completion preserves the current viewer and start boundary.
+Each stage follows only its own pod while running. After the stage finishes, its
+viewer prefers retained history when the `lightspeed-agentic-configuration`
+ConfigMap in `openshift-lightspeed` provides an `otel-admin-endpoint`; otherwise it
+falls back to the stage's pod. Retained logs are scoped to AgenticRun UID and phase
+and may include multiple attempts. Viewers never combine phases.
 
-Viewing requires permission to read the run, pods and pod logs. Claim-managed sandboxes
-also require read access to SandboxClaims and Sandboxes; retained history requires the
-named ConfigMap and collector service-proxy access. Pod discovery follows owner UIDs,
-not an assumption that a claim and pod have the same name. Missing optional retention
-does not change step status. If the pod has expired and retention is unavailable,
-historical output cannot be recovered by this plugin. Both sources are bounded to
-20,000 lines and 4,194,304 saved text characters, with a 65,536-character per-line
-limit. Retained lines exceeding that width are truncated; an oversized live line
-stops that stream with an error while preserving previously loaded output. The viewer
-reports truncation. These are saved-text limits, not collector response-size limits;
-the browser still materializes each retained JSON response before validation.
+Pod discovery follows sandbox owner UIDs. Log requests use the step's start boundary;
+analysis also uses its active condition transition to exclude earlier attempts.
+Changes to the run, attempt, or sandbox reset the viewer; completion preserves output.
+Viewing requires access to pods and pod logs, plus SandboxClaims/Sandboxes for
+claim-managed pods, or the configuration ConfigMap and collector proxy for retention.
+If the pod has expired and retention is unavailable, the plugin cannot recover logs.
+
+Both sources retain at most 20,000 lines, 4,194,304 text characters, and 65,536
+characters per line. The viewer discloses truncation. These are saved-text limits;
+the browser still materializes retained JSON responses before validation.
+
+Approvals patch AgenticRunApproval; the console does not execute displayed commands
+or request the platform update directly. Verification approval stays disabled while
+ClusterVersion reports an unfinished rollout or completion cannot be confirmed. This
+is a console-side guard; automatic approvals and other API clients are governed by
+the operator's policies. Changing an Agent timeout affects other runs using that Agent.
+
+Re-analyse deletes the current assessment after confirmation. It is unavailable
+while agent stages are running. Execution may have partially completed after a
+failure; review actions taken and cluster state before beginning another attempt.
 
 ## Prerequisites
 
@@ -72,8 +85,8 @@ The plugin dev server runs on port 9001 with CORS enabled. The console bridge ru
 For a standalone interactive preview using the real Cluster Update page and local
 sample data, run `yarn preview` and open <http://127.0.0.1:9002>. The preview stage
 selector covers analysis, approval, execution, verification, completion, and failure states.
-Approving a sample plan simulates execution and streams sample logs. After execution,
-**Approve verification** starts the sample verification stage. Re-analysis,
+Approving a sample plan simulates execution and streams sample logs. After execution, select **Ready for verification — rollout complete** to enable
+**Approve verification** and start the sample verification stage. Re-analysis,
 approval, and rejection affect only the preview; the preview SDK makes no cluster
 requests. Use **Reset preview** to start again.
 

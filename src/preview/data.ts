@@ -13,9 +13,14 @@ export type Scenario =
   | 'ReadinessBlocked'
   | 'Executing'
   | 'AwaitingVerification'
+  | 'ReadyForVerification'
   | 'Verifying'
   | 'Completed'
   | 'AnalysisFailed'
+  | 'ExecutionTimeout'
+  | 'VerificationTimeout'
+  | 'SandboxStartupTimeout'
+  | 'SandboxTimeout'
   | 'ExecutionFailed'
   | 'VerificationFailed'
   | 'Denied'
@@ -145,7 +150,17 @@ const option: RemediationOption = {
   },
 };
 
-export const resourcesFor = (scenario: Scenario, revision: number) => {
+export const resourcesFor = (inputScenario: Scenario, revision: number) => {
+  const scenario: Scenario =
+    inputScenario === 'ReadyForVerification'
+      ? 'AwaitingVerification'
+      : inputScenario === 'ExecutionTimeout'
+        ? 'ExecutionFailed'
+        : inputScenario === 'VerificationTimeout'
+          ? 'VerificationFailed'
+          : ['SandboxStartupTimeout', 'SandboxTimeout'].includes(inputScenario)
+            ? 'AnalysisFailed'
+            : inputScenario;
   const blocked = scenario === 'ReadinessBlocked';
   const readinessOption: RemediationOption = {
     ...option,
@@ -343,6 +358,35 @@ export const resourcesFor = (scenario: Scenario, revision: number) => {
       },
     },
   };
+  if (
+    ['ExecutionTimeout', 'VerificationTimeout', 'SandboxStartupTimeout', 'SandboxTimeout'].includes(
+      inputScenario,
+    )
+  ) {
+    const type =
+      inputScenario === 'ExecutionTimeout'
+        ? 'Executed'
+        : inputScenario === 'VerificationTimeout'
+          ? 'Verified'
+          : 'Analyzed';
+    const entry = run.status?.conditions?.find((item) => item.type === type);
+    if (entry) {
+      entry.reason =
+        inputScenario === 'SandboxStartupTimeout' || inputScenario === 'SandboxTimeout'
+          ? inputScenario
+          : 'AgentTimeout';
+      entry.message =
+        inputScenario === 'SandboxStartupTimeout'
+          ? 'Sandbox did not start within 5m.'
+          : 'The configured time budget was exceeded.';
+    }
+    if (inputScenario === 'VerificationTimeout' && entry) {
+      entry.reason = 'VerificationFailed';
+      entry.message = 'Verification failed: AgentTimeout';
+    }
+    if (inputScenario === 'VerificationTimeout')
+      run.status?.conditions?.push(condition('Escalated', 'Unknown', 'InProgress'));
+  }
   const result: LightspeedAnalysisResult = {
     metadata: {
       name: 'preview-analysis-result',

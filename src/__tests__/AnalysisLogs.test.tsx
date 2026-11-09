@@ -232,3 +232,22 @@ it('resets the viewer for a new analysis generation or active start, not normal 
   view.rerender(<AnalysisLogs run={replacement} />);
   expect(screen.getByText('View analysis logs')).toBeTruthy();
 });
+
+it('suppresses a handled stage failure while retaining log connection errors', () => {
+  const run = makeRun('False');
+  run.status!.conditions![0].message = 'Agent timed out';
+  stream.mockReturnValue({
+    lines: [],
+    loading: false,
+    state: 'error',
+    error: 'Connection lost',
+    revision: 0,
+    retry: jest.fn(),
+  });
+  const { rerender } = render(<AnalysisLogs run={run} hideStageFailure />);
+  expect(screen.queryByText('Analysis failed')).toBeNull();
+  open();
+  expect(screen.getByText('Analysis log connection failed')).toBeTruthy();
+  rerender(<AnalysisLogs run={run} />);
+  expect(screen.getByText('Analysis failed')).toBeTruthy();
+});
