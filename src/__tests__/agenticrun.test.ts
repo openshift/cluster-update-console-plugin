@@ -19,6 +19,29 @@ import {
   OtaOlmOperatorStatus,
   RemediationOption,
 } from '../models/agenticrun';
+import { isLogStreaming, LogPhase } from '../utils/logPhase';
+import { TERMINAL_PHASES } from '../utils/constants';
+
+it.each([
+  ['analysis', 'Analyzed'],
+  ['execution', 'Executed'],
+  ['verification', 'Verified'],
+] as const)('treats emergency-stopped %s as terminal and stops log streaming', (phase, type) => {
+  const run = {
+    status: {
+      conditions: [
+        { type, status: 'Unknown' },
+        { type: 'EmergencyStopped', status: 'True', reason: 'SystemSuspended' },
+      ],
+    },
+  } as LightspeedAgenticRun;
+  expect(derivePhase(run)).toBe('EmergencyStopped');
+  expect(TERMINAL_PHASES.has(derivePhase(run))).toBe(true);
+  expect(getPhaseDisplay(derivePhase(run))).toEqual({ color: 'red', label: 'Emergency stopped' });
+  for (const stage of ['analysis', 'execution', 'verification'] as LogPhase[]) {
+    expect(isLogStreaming(run, stage)).toBe(false);
+  }
+});
 
 describe('getPhaseDisplay', () => {
   it('maps known phases to expected colors', () => {

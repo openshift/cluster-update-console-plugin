@@ -145,6 +145,7 @@ const UpdatePlanSections: React.FC<UpdatePlanSectionsProps> = ({
   const { t } = useTranslation(I18N_NAMESPACE);
   const [selection, setSelection] = React.useState<{ resultKey: string; index: number }>();
   const phase = derivePhase(agenticRun);
+  const stopped = phase === 'EmergencyStopped';
   const analysisTimedOut = isStageTimeout(agenticRun, 'analysis');
   const executionTimedOut = isStageTimeout(agenticRun, 'execution');
   const verificationTimedOut = isStageTimeout(agenticRun, 'verification');
@@ -188,27 +189,33 @@ const UpdatePlanSections: React.FC<UpdatePlanSectionsProps> = ({
       ? 'Completed'
       : analysisCondition?.status === 'False'
         ? 'Failed'
-        : phase === 'Analyzing' || submitted
-          ? 'Analyzing'
-          : 'Pending';
+        : stopped
+          ? 'EmergencyStopped'
+          : phase === 'Analyzing' || submitted
+            ? 'Analyzing'
+            : 'Pending';
   const executionPhase: AgenticRunPhase =
     executionCondition?.status === 'True'
       ? 'Completed'
       : executionCondition?.status === 'False'
         ? 'Failed'
-        : executionCondition?.status === 'Unknown'
-          ? 'Executing'
-          : phase === 'Approved' || phase === 'Denied'
-            ? phase
-            : 'Pending';
+        : stopped
+          ? 'EmergencyStopped'
+          : executionCondition?.status === 'Unknown'
+            ? 'Executing'
+            : phase === 'Approved' || phase === 'Denied'
+              ? phase
+              : 'Pending';
   const verificationPhase: AgenticRunPhase =
     verificationCondition?.status === 'True'
       ? 'Completed'
       : verificationCondition?.status === 'False'
         ? 'Failed'
-        : verificationStarted
-          ? 'Verifying'
-          : 'Pending';
+        : stopped
+          ? 'EmergencyStopped'
+          : verificationStarted
+            ? 'Verifying'
+            : 'Pending';
   const failedStage = phase === 'Failed' ? getFailedStage(agenticRun) : undefined;
   const analysisFailed = analysisPhase === 'Failed';
   const stepResults = agenticRun.status?.steps?.analysis?.results;
@@ -244,7 +251,7 @@ const UpdatePlanSections: React.FC<UpdatePlanSectionsProps> = ({
     !!resultData.analysisData ||
     !!resultData.diagnosis;
   const analysisLogs = hasStepLogs(agenticRun, 'analysis') ? (
-    <AnalysisLogs run={agenticRun} hideStageFailure={analysisTimedOut} />
+    <AnalysisLogs run={agenticRun} hideStageFailure />
   ) : null;
   const executionLoading =
     !executionSkipped && !noActionRequired && ['Approved', 'Executing'].includes(phase);
@@ -253,6 +260,14 @@ const UpdatePlanSections: React.FC<UpdatePlanSectionsProps> = ({
 
   return (
     <>
+      {stopped && (
+        <StackItem>
+          <Alert variant="warning" isInline title={t('Agentic run stopped')}>
+            {agenticRun.status?.conditions?.find((entry) => entry.type === 'EmergencyStopped')
+              ?.message || t('This run was stopped by the administrator.')}
+          </Alert>
+        </StackItem>
+      )}
       <StackItem>
         <UpdatePhaseSection
           title={t('Update analysis')}
@@ -310,9 +325,11 @@ const UpdatePlanSections: React.FC<UpdatePlanSectionsProps> = ({
                 {analysisPhase !== 'Analyzing' && !analysisFailed && (
                   <StackItem>
                     <Content component="p">
-                      {phase === 'Pending'
-                        ? t('Select Analyse to assess cluster readiness for this update.')
-                        : t('Analysis result not yet available.')}
+                      {stopped
+                        ? t('Analysis result is unavailable for this stopped run.')
+                        : phase === 'Pending'
+                          ? t('Select Analyse to assess cluster readiness for this update.')
+                          : t('Analysis result not yet available.')}
                     </Content>
                   </StackItem>
                 )}
@@ -400,24 +417,31 @@ const UpdatePlanSections: React.FC<UpdatePlanSectionsProps> = ({
                     </StackItem>
                   )}
                 <StackItem>
-                  <ExecutionLogs run={agenticRun} hideStageFailure={executionTimedOut} />
+                  <ExecutionLogs
+                    run={agenticRun}
+                    hideStageFailure={
+                      executionTimedOut || (!analysisFailed && failedStage?.label === 'Execution')
+                    }
+                  />
                 </StackItem>
               </>
             ) : (
               !executionLoading && (
                 <StackItem>
                   <Content component="p">
-                    {noActionRequired
-                      ? t('Execution is not required for this analysis.')
-                      : executionSkipped
-                        ? t('Execution was skipped for this analysis-only update plan.')
-                        : phase === 'Denied'
-                          ? t('Execution was denied.')
-                          : phase === 'Approved'
-                            ? t('Waiting for execution to start...')
-                            : t(
-                                'Execution has not started. Review and approve the analysis plan to proceed.',
-                              )}
+                    {stopped
+                      ? t('Execution will not start because this run was stopped.')
+                      : noActionRequired
+                        ? t('Execution is not required for this analysis.')
+                        : executionSkipped
+                          ? t('Execution was skipped for this analysis-only update plan.')
+                          : phase === 'Denied'
+                            ? t('Execution was denied.')
+                            : phase === 'Approved'
+                              ? t('Waiting for execution to start...')
+                              : t(
+                                  'Execution has not started. Review and approve the analysis plan to proceed.',
+                                )}
                   </Content>
                 </StackItem>
               )
@@ -447,22 +471,25 @@ const UpdatePlanSections: React.FC<UpdatePlanSectionsProps> = ({
             <StackItem>
               {verificationStarted && !noActionRequired ? (
                 <VerificationLogs run={agenticRun} hideStageFailure={verificationTimedOut} />
-              ) : verificationConfigured &&
+              ) : !stopped &&
+                verificationConfigured &&
                 !verificationSkipped &&
                 !noActionRequired &&
                 executionCondition?.status === 'True' ? (
                 <VerificationApproval run={agenticRun} />
               ) : (
                 <Content component="p">
-                  {noActionRequired
-                    ? t('Verification is not required for this analysis.')
-                    : verificationSkipped
-                      ? t('Verification was skipped for this update plan.')
-                      : !verificationConfigured
-                        ? t('Verification is not configured for this update plan.')
-                        : t(
-                            'Verification starts after successful execution and any required approval.',
-                          )}
+                  {stopped
+                    ? t('Verification will not start because this run was stopped.')
+                    : noActionRequired
+                      ? t('Verification is not required for this analysis.')
+                      : verificationSkipped
+                        ? t('Verification was skipped for this update plan.')
+                        : !verificationConfigured
+                          ? t('Verification is not configured for this update plan.')
+                          : t(
+                              'Verification starts after successful execution and any required approval.',
+                            )}
                 </Content>
               )}
             </StackItem>

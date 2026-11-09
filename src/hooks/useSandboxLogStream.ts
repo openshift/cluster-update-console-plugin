@@ -42,7 +42,9 @@ const EMPTY_RESULT: LogResult = {
 };
 const TIMESTAMP = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:\d{2})(?:\s|$)/;
 
-const timestampOf = (line: string): { value: string; key: string } | undefined => {
+const timestampOf = (
+  line: string,
+): { value: string; key: string; seconds: number; fraction: string } | undefined => {
   const match = line.match(TIMESTAMP);
   if (!match) {
     return undefined;
@@ -51,9 +53,12 @@ const timestampOf = (line: string): { value: string; key: string } | undefined =
   if (!Number.isFinite(seconds)) {
     return undefined;
   }
+  const fraction = (match[2] ?? '').replace(/0+$/, '');
   return {
     value: `${match[1]}${match[2] ? `.${match[2]}` : ''}${match[3]}`,
-    key: `${seconds}:${(match[2] ?? '').replace(/0+$/, '')}`,
+    key: `${seconds}:${fraction}`,
+    seconds,
+    fraction,
   };
 };
 
@@ -136,6 +141,7 @@ export const useSandboxLogStream = (
         let receivedData = false;
         const replayCounts = new Map(streaming ? boundaryCounts : []);
         const resumeKey = streaming ? boundaryKey : undefined;
+        const resumeTimestamp = resumeKey && lastTimestamp ? timestampOf(lastTimestamp) : undefined;
         let replaceSnapshot = !streaming;
         const parameters: Record<string, string> = { timestamps: 'true' };
         if (streaming) {
@@ -168,6 +174,15 @@ export const useSandboxLogStream = (
             }
             const timestamp = timestampOf(line);
             if (timestamp) {
+              // Kubernetes forwards sinceTime at whole-second precision, replaying earlier records.
+              if (
+                resumeTimestamp &&
+                (timestamp.seconds < resumeTimestamp.seconds ||
+                  (timestamp.seconds === resumeTimestamp.seconds &&
+                    timestamp.fraction < resumeTimestamp.fraction))
+              ) {
+                continue;
+              }
               const remaining = replayCounts.get(line) ?? 0;
               if (timestamp.key === resumeKey && remaining > 0) {
                 replayCounts.set(line, remaining - 1);

@@ -33,7 +33,7 @@
     "@openshift-console/dynamic-plugin-sdk-webpack": "4.22-latest",
     "@patternfly/react-core": "^6.4.3",
     "@patternfly/react-icons": "^6.4.0",
-    "@patternfly/react-log-viewer": "^6.0.0",
+    "@patternfly/react-log-viewer": "patch:@patternfly/react-log-viewer@npm%3A6.5.0#~/.yarn/patches/@patternfly-react-log-viewer-npm-6.5.0-40826af292.patch",
     "@patternfly/react-table": "^6.4.3",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.0",

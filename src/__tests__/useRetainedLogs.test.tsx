@@ -36,6 +36,184 @@ beforeEach(() => {
   fetchMock.mockReset();
 });
 
+it('collects delayed records incrementally for 30 seconds without blocking pod fallback', async () => {
+  jest.useFakeTimers();
+  const flush = async (milliseconds = 0) => {
+    await act(async () => {
+      jest.advanceTimersByTime(milliseconds);
+      for (let i = 0; i < 20; i++) await Promise.resolve();
+    });
+  };
+  let ids: number[] = [];
+  fetchMock.mockResolvedValueOnce(config()).mockImplementation(async () => page(ids));
+  const view = renderHook(() => useRetainedLogs('run-uid', true));
+  try {
+    await flush();
+    expect(view.result.current).toMatchObject({ available: true, loading: false, lines: [] });
+    ids = [1];
+    await flush(5000);
+    expect(view.result.current.lines).toHaveLength(1);
+    const firstLines = view.result.current.lines;
+    ids = [2];
+    await flush(5000);
+    expect(view.result.current.lines).not.toBe(firstLines);
+    expect(view.result.current.lines.join('\n')).toContain('line 1\n');
+    expect(view.result.current.lines.at(-1)).toContain('line 2');
+    expect(String(fetchMock.mock.calls.at(-1)?.[0])).toContain('after=1');
+    ids = [];
+    for (let i = 0; i < 4; i++) await flush(5000);
+    const requests = fetchMock.mock.calls.length;
+    expect(requests).toBe(8);
+    await flush(60000);
+    expect(fetchMock).toHaveBeenCalledTimes(requests);
+    expect(jest.getTimerCount()).toBe(0);
+    expect(view.result.current.loading).toBe(false);
+  } finally {
+    view.unmount();
+    jest.useRealTimers();
+  }
+});
+
+it.each(['network', 'HTTP', 'malformed'] as const)(
+  'preserves the published snapshot when a later refresh page fails (%s)',
+  async (failure) => {
+    jest.useFakeTimers();
+    fetchMock
+      .mockResolvedValueOnce(config())
+      .mockResolvedValueOnce(
+        response({
+          agentic_run_id: 'run-uid',
+          has_more: false,
+          records: [{ ...record(1), body: { msg: 'x'.repeat(MAX_LOG_LINE_CHARS + 1) } }],
+        }),
+      )
+      .mockResolvedValueOnce(page([2], true))
+      .mockImplementationOnce(async () => {
+        if (failure === 'network') throw new Error('Network unavailable');
+        return failure === 'HTTP' ? response({}, 503) : page([3], false, 'other-run');
+      });
+    const view = renderHook(() => useRetainedLogs('run-uid', true));
+    try {
+      await act(async () => {
+        for (let i = 0; i < 20; i++) await Promise.resolve();
+      });
+      const savedLines = view.result.current.lines;
+      expect(savedLines).toHaveLength(1);
+      expect(view.result.current.truncated).toBe(true);
+      await act(async () => {
+        jest.advanceTimersByTime(5000);
+        for (let i = 0; i < 20; i++) await Promise.resolve();
+      });
+      expect(view.result.current.lines).toHaveLength(1);
+      expect(view.result.current.lines).toEqual(savedLines);
+      expect(view.result.current).toMatchObject({
+        available: true,
+        loading: false,
+        truncated: true,
+      });
+      expect(view.result.current.error).toBeTruthy();
+      expect(String(fetchMock.mock.calls[2][0])).toContain('after=1');
+      expect(String(fetchMock.mock.calls[3][0])).toContain('after=2');
+      expect(jest.getTimerCount()).toBe(0);
+    } finally {
+      view.unmount();
+      jest.useRealTimers();
+    }
+  },
+);
+
+it('preserves saved history during failed manual retries and replaces it after recovery', async () => {
+  jest.useFakeTimers();
+  const flush = async (milliseconds = 0) => {
+    await act(async () => {
+      jest.advanceTimersByTime(milliseconds);
+      for (let i = 0; i < 20; i++) await Promise.resolve();
+    });
+  };
+  fetchMock
+    .mockResolvedValueOnce(config())
+    .mockResolvedValueOnce(page([1]))
+    .mockRejectedValueOnce(new TypeError('Network disconnected'))
+    .mockRejectedValueOnce(new TypeError('Network disconnected'));
+  const view = renderHook(() => useRetainedLogs('run-uid', true));
+  try {
+    await flush();
+    const savedLines = view.result.current.lines;
+    await flush(5000);
+    expect(view.result.current.error).toBeTruthy();
+    expect(view.result.current.lines).toEqual(savedLines);
+
+    act(() => view.result.current.retry());
+    expect(view.result.current.lines).toEqual(savedLines);
+    expect(view.result.current.loading).toBe(true);
+    await flush();
+    expect(view.result.current.lines).toEqual(savedLines);
+    expect(view.result.current.error).toBeTruthy();
+    expect(view.result.current).toMatchObject({
+      available: true,
+      loading: false,
+      truncated: false,
+    });
+
+    fetchMock.mockResolvedValueOnce(config()).mockResolvedValueOnce(page([2]));
+    act(() => view.result.current.retry());
+    expect(view.result.current.lines).toEqual(savedLines);
+    await flush();
+    expect(view.result.current.lines).toHaveLength(1);
+    expect(view.result.current.lines[0]).toContain('line 2');
+    expect(view.result.current.error).toBeUndefined();
+  } finally {
+    view.unmount();
+    jest.useRealTimers();
+  }
+});
+
+it.each(['run', 'phase'] as const)(
+  'does not reuse saved history after a %s switch',
+  async (change) => {
+    fetchMock.mockResolvedValueOnce(config()).mockResolvedValueOnce(page([1]));
+    const view = renderHook(({ uid, phase }) => useRetainedLogs(uid, true, phase), {
+      initialProps: { uid: 'run-uid', phase: 'execution' as LogPhase },
+    });
+    await waitFor(() => expect(view.result.current.lines).toHaveLength(1));
+    fetchMock.mockRejectedValueOnce(new TypeError('Network disconnected'));
+    view.rerender({
+      uid: change === 'run' ? 'other-run' : 'run-uid',
+      phase: change === 'phase' ? 'analysis' : 'execution',
+    });
+    expect(view.result.current.lines).toEqual([]);
+    await waitFor(() => expect(view.result.current.error).toBeTruthy());
+    expect(view.result.current.lines).toEqual([]);
+  },
+);
+
+it.each(['close', 'unmount'])(
+  'cancels a pending history refresh on viewer %s',
+  async (operation) => {
+    jest.useFakeTimers();
+    fetchMock.mockResolvedValueOnce(config()).mockResolvedValueOnce(page([1]));
+    const view = renderHook(({ active }) => useRetainedLogs('run-uid', active), {
+      initialProps: { active: true },
+    });
+    try {
+      await act(async () => {
+        for (let i = 0; i < 20; i++) await Promise.resolve();
+      });
+      expect(jest.getTimerCount()).toBe(1);
+      if (operation === 'close') view.rerender({ active: false });
+      else view.unmount();
+      await act(async () => {
+        jest.advanceTimersByTime(60000);
+      });
+      expect(jest.getTimerCount()).toBe(0);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      view.unmount();
+      jest.useRealTimers();
+    }
+  },
+);
+
 it('paginates analysis history using the exact phase filter without execution records', async () => {
   const analysisPage = (id: number, hasMore: boolean) =>
     response({

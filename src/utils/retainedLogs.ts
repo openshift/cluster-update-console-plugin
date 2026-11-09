@@ -47,8 +47,7 @@ export const buildServiceProxyBase = (endpoint: string): string | undefined => {
       return undefined;
     }
     const protocol = url.protocol.slice(0, -1);
-    const explicitPort = endpoint.trim().match(/^https?:\/\/[^/?#]+:(\d+)(?:[/?#]|$)/i)?.[1];
-    const port = url.port || (explicitPort ? String(Number(explicitPort)) : '8080');
+    const port = url.port || (protocol === 'https' ? '443' : '80');
     if (Number(port) < 1 || Number(port) > 65535) {
       return undefined;
     }

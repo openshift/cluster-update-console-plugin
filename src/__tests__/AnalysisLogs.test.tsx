@@ -6,8 +6,18 @@ import { useStepSandbox } from '../hooks/useExecutionSandbox';
 import { useRetainedLogs } from '../hooks/useRetainedLogs';
 import { useSandboxLogStream } from '../hooks/useSandboxLogStream';
 import { LightspeedAgenticRun } from '../models/agenticrun';
+import UpdatePlanSections from '../components/update-plan/UpdatePlanSections';
 
-jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (message: string) => message }) }));
+jest.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (message: string, values?: Record<string, string>) =>
+      message.replace(/{{(\w+)}}/g, (_match, key) => values?.[key] ?? ''),
+  }),
+}));
+jest.mock('../components/update-plan/PlanHeader', () => ({ default: () => null }));
+jest.mock('../components/shared/MarkdownContent', () => ({
+  MarkdownContent: ({ text }: { text: string }) => <div>{text}</div>,
+}));
 jest.mock('../hooks/useExecutionSandbox');
 jest.mock('../hooks/useRetainedLogs');
 jest.mock('../hooks/useSandboxLogStream');
@@ -209,19 +219,81 @@ it('separates simultaneous analysis snapshots and live execution output', () => 
   expect(recent.find(([pod]) => pod.podName === 'execution')?.[2]).toBe(true);
 });
 
-it('resets the viewer for a new analysis generation or active start, not normal completion', () => {
+it.each([
+  ['analysis', 'Analyzed', AnalysisLogs],
+  ['execution', 'Executed', ExecutionLogs],
+  ['verification', 'Verified', VerificationLogs],
+] as const)('preserves the %s log toggle as sandbox metadata arrives', (phase, condition, Logs) => {
+  const run = makeRun();
+  run.status!.conditions![0].type = condition;
+  sandbox.mockReturnValue({ loading: false, missing: true, retry: jest.fn() });
+  const { rerender } = render(<Logs run={run} />);
+  fireEvent.click(screen.getByRole('button', { name: `View ${phase} logs` }));
+  expect(screen.getByText(`Waiting for ${phase} sandbox`)).toBeTruthy();
+
+  const provisioned = {
+    ...run,
+    status: {
+      ...run.status,
+      steps: { [phase]: { sandbox: { claimName: 'claim', namespace: 'ns' } } },
+    },
+  };
+  sandbox.mockReturnValue({
+    pod: { podName: 'pod', namespace: 'ns', sinceTime: 'start' },
+    loading: false,
+    retry: jest.fn(),
+  });
+  rerender(<Logs run={provisioned} />);
+  expect(screen.getByRole('button', { name: `Hide ${phase} logs` })).toBeTruthy();
+  expect(stream.mock.calls.at(-1)?.slice(1)).toEqual([true, true, 'start']);
+
+  fireEvent.click(screen.getByRole('button', { name: `Hide ${phase} logs` }));
+  rerender(
+    <Logs
+      run={{
+        ...provisioned,
+        status: {
+          ...provisioned.status,
+          steps: {
+            [phase]: {
+              ...provisioned.status.steps[phase],
+              conditions: [
+                { type: 'Started', status: 'True', lastTransitionTime: '2026-10-27T02:01:00Z' },
+              ],
+            },
+          },
+        },
+      }}
+    />,
+  );
+  expect(screen.getByRole('button', { name: `View ${phase} logs` })).toBeTruthy();
+  expect(stream.mock.calls.at(-1)?.[1]).toBe(false);
+});
+
+it('resets log state for a new analysis attempt while preserving expansion', () => {
+  let output = 'original attempt';
+  stream.mockImplementation(() => {
+    const [lines] = React.useState(() => [output]);
+    return { lines, loading: false, state: 'streaming', retry: jest.fn() };
+  });
   const view = render(<AnalysisLogs run={makeRun()} />);
   open();
+  output = 'new generation';
   view.rerender(<AnalysisLogs run={makeRun('True')} />);
   expect(screen.getByText('Hide analysis logs')).toBeTruthy();
+  expect(screen.getByText('original attempt')).toBeTruthy();
   view.rerender(<AnalysisLogs run={makeRun('Unknown', 2)} />);
-  expect(screen.getByText('View analysis logs')).toBeTruthy();
-  open();
+  expect(screen.getByText('Hide analysis logs')).toBeTruthy();
+  expect(screen.getByText('new generation')).toBeTruthy();
+  expect(screen.queryByText('original attempt')).toBeNull();
+  output = 'new start';
   const retry = makeRun('Unknown', 2);
   retry.status!.conditions![0].lastTransitionTime = '2026-10-27T03:00:00Z';
   view.rerender(<AnalysisLogs run={retry} />);
-  expect(screen.getByText('View analysis logs')).toBeTruthy();
-  open();
+  expect(screen.getByText('Hide analysis logs')).toBeTruthy();
+  expect(screen.getByText('new start')).toBeTruthy();
+  expect(screen.queryByText('new generation')).toBeNull();
+  output = 'replacement sandbox';
   const replacement = {
     ...retry,
     status: {
@@ -230,7 +302,42 @@ it('resets the viewer for a new analysis generation or active start, not normal 
     },
   };
   view.rerender(<AnalysisLogs run={replacement} />);
-  expect(screen.getByText('View analysis logs')).toBeTruthy();
+  expect(screen.getByText('Hide analysis logs')).toBeTruthy();
+  expect(screen.getByText('replacement sandbox')).toBeTruthy();
+  expect(screen.queryByText('new start')).toBeNull();
+});
+
+it.each([
+  ['analysis', 'Analyzed', 'Analysis'],
+  ['execution', 'Executed', 'Execution'],
+  ['verification', 'Verified', 'Verification'],
+] as const)('shows the %s failure once in the complete phase section', (phase, type, label) => {
+  const run = makeRun('False');
+  run.status!.conditions![0].type = type;
+  run.status!.conditions![0].message = 'The agent could not complete the requested action.';
+  stream.mockReturnValue({
+    lines: ['saved output'],
+    loading: false,
+    state: 'error',
+    error: 'Connection lost',
+    retry: jest.fn(),
+  });
+  render(
+    <UpdatePlanSections
+      agenticRun={run}
+      analysisResults={[]}
+      submitted={false}
+      reanalyseButton={null}
+    />,
+  );
+  expect(screen.getAllByText(`${label} failed`)).toHaveLength(1);
+  expect(screen.getAllByText('The agent could not complete the requested action.')).toHaveLength(1);
+  fireEvent.click(screen.getByRole('button', { name: `View ${phase} logs` }));
+  expect(screen.getAllByText(`${label} failed`)).toHaveLength(1);
+  expect(screen.getAllByText('The agent could not complete the requested action.')).toHaveLength(1);
+  expect(screen.getByText(`Some ${phase} logs could not be loaded`)).toBeTruthy();
+  expect(screen.getByText('Connection lost')).toBeTruthy();
+  expect(screen.getByText('saved output')).toBeTruthy();
 });
 
 it('suppresses a handled stage failure while retaining log connection errors', () => {

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { k8sPatch, useAccessReview } from '@openshift-console/dynamic-plugin-sdk';
+import { checkAccess, k8sPatch } from '@openshift-console/dynamic-plugin-sdk';
 import { useTranslation } from 'react-i18next';
 import { LightspeedAgenticRunApproval, AgenticRunApprovalModel } from '../models/agenticrun';
 import { getErrorMessage } from '../utils/error';
@@ -19,12 +19,41 @@ export const useApprovalActions = (approval?: LightspeedAgenticRunApproval) => {
   const [inProgress, setInProgress] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const mutationPending = React.useRef(false);
-  const [canApprove, canApproveLoading] = useAccessReview({
-    group: 'agentic.openshift.io',
-    resource: 'agenticrunapprovals',
-    verb: 'patch',
-    namespace: approval?.metadata?.namespace ?? LIGHTSPEED_NAMESPACE,
-  });
+  const name = approval?.metadata?.name;
+  const namespace = approval?.metadata?.namespace ?? LIGHTSPEED_NAMESPACE;
+  const resourceAttributes = React.useMemo(
+    () => ({
+      group: 'agentic.openshift.io',
+      resource: 'agenticrunapprovals',
+      verb: 'patch' as const,
+      namespace,
+      name,
+    }),
+    [name, namespace],
+  );
+  const [accessReview, setAccessReview] = React.useState<{
+    resourceAttributes: typeof resourceAttributes;
+    allowed: boolean;
+  }>();
+  const canApproveLoading = !name || accessReview?.resourceAttributes !== resourceAttributes;
+  const canApprove = !!name && !canApproveLoading && !!accessReview?.allowed;
+
+  React.useEffect(() => {
+    if (!resourceAttributes.name) return;
+    let active = true;
+    checkAccess(resourceAttributes).then(
+      (review) => {
+        if (active) setAccessReview({ resourceAttributes, allowed: !!review.status?.allowed });
+      },
+      () => {
+        // Match the SDK's fallback: the server still enforces patch authorization.
+        if (active) setAccessReview({ resourceAttributes, allowed: true });
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [resourceAttributes]);
 
   const decide = React.useCallback(
     async (stageType: ApprovalStageType, denied: boolean, options?: { optionIndex?: number }) => {

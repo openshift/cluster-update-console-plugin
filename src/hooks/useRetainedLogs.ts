@@ -1,5 +1,5 @@
 import { consoleFetch } from '@openshift-console/dynamic-plugin-sdk';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { I18N_NAMESPACE, LIGHTSPEED_NAMESPACE } from '../utils/constants';
 import { getLogHttpStatus, MAX_LOG_LINE_CHARS, MAX_LOG_TEXT_CHARS } from '../utils/logs';
@@ -22,6 +22,8 @@ export interface RetainedLogsResult {
 }
 
 const emptyResult = { available: false, lines: [], loading: false, truncated: false };
+const REFRESH_INTERVAL_MS = 5000;
+const MAX_REFRESHES = 6;
 
 class RetainedLogsError extends Error {}
 
@@ -38,27 +40,38 @@ export const useRetainedLogs = (
     attempt: number;
     result: Omit<RetainedLogsResult, 'retry'>;
   }>({ phase, attempt, result: emptyResult });
+  const saved = useRef<{
+    runUid: string;
+    phase: LogPhase;
+    result: Omit<RetainedLogsResult, 'retry'>;
+  }>();
   const retry = useCallback(() => setAttempt((previous) => previous + 1), []);
 
   useEffect(() => {
+    if (saved.current?.runUid !== runUid || saved.current?.phase !== phase) {
+      saved.current = undefined;
+    }
     if (!active || !runUid) {
       return;
     }
     const controller = new AbortController();
     let cancelled = false;
+    let cancelDelay: (() => void) | undefined;
     const publish = (result: Omit<RetainedLogsResult, 'retry'>) => {
       if (!cancelled) {
+        if (!result.loading && !result.error) saved.current = { runUid, phase, result };
         setState({ runUid, phase, attempt, result });
       }
     };
     const fetchLogs = async () => {
       let available = false;
+      let snapshot: Omit<RetainedLogsResult, 'retry'> = saved.current?.result ?? emptyResult;
       try {
         await Promise.resolve();
         if (cancelled) {
           return;
         }
-        publish({ ...emptyResult, loading: true });
+        publish({ ...snapshot, loading: true });
         const response = await consoleFetch(
           `/api/kubernetes/api/v1/namespaces/${encodeURIComponent(LIGHTSPEED_NAMESPACE)}` +
             '/configmaps/lightspeed-agentic-configuration',
@@ -104,6 +117,7 @@ export const useRetainedLogs = (
         let characters = 0;
         let textTruncated = false;
         let after = 0;
+        let refreshes = 0;
         while (!cancelled) {
           const query = new URLSearchParams({
             agentic_run_id: runUid,
@@ -146,21 +160,32 @@ export const useRetainedLogs = (
             characters += cost;
             consumed++;
           }
-          if (
-            !page.has_more ||
+          const limitReached =
             lines.length >= MAX_RETAINED_LOG_LINES ||
             consumed < page.records.length ||
-            characters >= MAX_LOG_TEXT_CHARS
-          ) {
-            publish({
+            characters >= MAX_LOG_TEXT_CHARS;
+          if (!page.has_more || limitReached) {
+            snapshot = {
               available,
-              lines,
+              lines: [...lines],
               loading: false,
               truncated: textTruncated || consumed < page.records.length || page.has_more,
+            };
+            publish(snapshot);
+            if (limitReached || refreshes >= MAX_REFRESHES) return;
+            // Completion audit records can arrive after the terminal status update.
+            refreshes++;
+            await new Promise<void>((resolve) => {
+              const timer = setTimeout(resolve, REFRESH_INTERVAL_MS);
+              cancelDelay = () => {
+                clearTimeout(timer);
+                resolve();
+              };
             });
-            return;
+            cancelDelay = undefined;
+            if (cancelled) return;
           }
-          after = page.records[page.records.length - 1].id;
+          if (page.records.length > 0) after = page.records[page.records.length - 1].id;
         }
       } catch (error) {
         const status = getLogHttpStatus(error);
@@ -169,8 +194,8 @@ export const useRetainedLogs = (
           return;
         }
         publish({
-          ...emptyResult,
-          available,
+          ...snapshot,
+          available: available || snapshot.available,
           error:
             error instanceof RetainedLogsError
               ? error.message
@@ -184,13 +209,14 @@ export const useRetainedLogs = (
     return () => {
       cancelled = true;
       controller.abort();
+      cancelDelay?.();
     };
   }, [active, runUid, phase, attempt, t]);
 
   const current =
     active && runUid
-      ? state.runUid === runUid && state.phase === phase && state.attempt === attempt
-        ? state.result
+      ? state.runUid === runUid && state.phase === phase
+        ? { ...state.result, loading: state.result.loading || state.attempt !== attempt }
         : { ...emptyResult, loading: true }
       : emptyResult;
   return { ...current, retry };

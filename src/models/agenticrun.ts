@@ -119,6 +119,7 @@ export type AgenticRunPhase =
   | 'Proposed'
   | 'Approved'
   | 'Denied'
+  | 'EmergencyStopped'
   | 'Executing'
   | 'AwaitingSync'
   | 'Verifying'
@@ -139,6 +140,7 @@ export const ACTIVE_AGENTIC_RUN_PHASES = new Set<AgenticRunPhase>([
   'Escalating',
   'Escalated',
   'Failed',
+  'EmergencyStopped',
 ]);
 
 export const derivePhase = (agenticRun?: LightspeedAgenticRun): AgenticRunPhase => {
@@ -152,6 +154,7 @@ export const derivePhase = (agenticRun?: LightspeedAgenticRun): AgenticRunPhase 
   const analyzed = find('Analyzed');
 
   // Terminal states first
+  if (find('EmergencyStopped')?.status === 'True') return 'EmergencyStopped';
   if (escalated?.status === 'True') return 'Escalated';
   if (denied?.status === 'True') return 'Denied';
 
@@ -234,6 +237,8 @@ export const getPhaseDisplay = (phase?: AgenticRunPhase | string): PhaseDisplay 
       return { color: 'green', label: 'Completed' };
     case 'Failed':
       return { color: 'red', label: 'Failed' };
+    case 'EmergencyStopped':
+      return { color: 'red', label: 'Emergency stopped' };
     case 'Denied':
       return { color: 'red', label: 'Denied' };
     case 'AwaitingSync':

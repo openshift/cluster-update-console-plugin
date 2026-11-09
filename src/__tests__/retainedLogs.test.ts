@@ -20,8 +20,8 @@ describe('buildServiceProxyBase', () => {
   it.each([
     ['http://collector.logs.svc:8080', 'http:collector:8080'],
     ['https://collector.logs.svc.cluster.local:8443/', 'https:collector:8443'],
-    ['http://collector.logs', 'http:collector:8080'],
-    ['https://collector.logs.svc.', 'https:collector:8080'],
+    ['http://collector.logs', 'http:collector:80'],
+    ['https://collector.logs.svc.', 'https:collector:443'],
     ['http://collector.logs.svc:80', 'http:collector:80'],
     ['https://collector.logs.svc:443', 'https:collector:443'],
   ])('preserves protocol and port for %s', (endpoint, target) => {

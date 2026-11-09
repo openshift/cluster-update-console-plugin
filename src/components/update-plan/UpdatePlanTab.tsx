@@ -52,6 +52,7 @@ const ReanalyseButton: React.FC<ReanalyseButtonProps> = ({ agenticRun }) => {
     'Denied',
     'Completed',
     'Escalated',
+    'EmergencyStopped',
   ].includes(derivePhase(agenticRun));
 
   const openModal = React.useCallback((e: React.MouseEvent) => {
@@ -207,7 +208,7 @@ const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ agenticRuns }) => {
   // Recover selection when an assessment is deleted or its update path disappears.
   React.useEffect(() => {
     if (!agenticRuns.some((run) => run.metadata?.name === selectedName)) {
-      setSelectedName(agenticRuns[0].metadata?.name ?? '');
+      setSelectedName(agenticRuns[0]?.metadata?.name ?? '');
     }
   }, [selectedName, agenticRuns]);
 

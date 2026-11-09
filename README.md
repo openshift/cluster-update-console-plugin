@@ -41,6 +41,11 @@ Both sources retain at most 20,000 lines, 4,194,304 text characters, and 65,536
 characters per line. The viewer discloses truncation. These are saved-text limits;
 the browser still materializes retained JSON responses before validation.
 
+The PatternFly log viewer is pinned with a Yarn patch in `.yarn/patches/` so wrapped
+line measurement treats log content as text and search matches remain escaped.
+Keep the patch until the upstream dependency includes both fixes. Regression tests
+exercise the real viewer with literal markup in pod and retained logs.
+
 Approvals patch AgenticRunApproval; the console does not execute displayed commands
 or request the platform update directly. Verification approval stays disabled while
 ClusterVersion reports an unfinished rollout or completion cannot be confirmed. This

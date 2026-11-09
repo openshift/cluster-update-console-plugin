@@ -172,10 +172,36 @@ it('uses nonempty successful retained history even with no pod', () => {
   expect(stream.mock.calls.at(-1)?.[1]).toBe(false);
 });
 
+it('keeps displayed retained history and its refresh warning when the pod is gone', () => {
+  const snapshot = {
+    available: true,
+    lines: ['saved execution history'],
+    loading: false,
+    truncated: true,
+    retry: retainedRetry,
+  };
+  retained.mockReturnValue(snapshot);
+  sandbox.mockReturnValue({ missing: true, loading: false, retry: sandboxRetry });
+  const completed = run([{ type: 'Executed', status: 'True' }]);
+  const view = render(<ExecutionLogs run={completed} />);
+  fireEvent.click(screen.getByText('View execution logs'));
+  expect(screen.getByText('saved execution history')).toBeTruthy();
+
+  retained.mockReturnValue({ ...snapshot, error: 'Failed to fetch retained logs (HTTP 503)' });
+  view.rerender(<ExecutionLogs run={completed} />);
+  expect(screen.getByText('saved execution history')).toBeTruthy();
+  expect(screen.getByText('Retained execution history')).toBeTruthy();
+  expect(screen.getByText('Some execution logs could not be loaded')).toBeTruthy();
+  expect(screen.getByText('Failed to fetch retained logs (HTTP 503)')).toBeTruthy();
+  expect(screen.getByText('Log output was truncated to viewer line or text limits.')).toBeTruthy();
+  expect(screen.queryByText('No execution logs available.')).toBeNull();
+  expect(sandbox.mock.calls.at(-1)?.[1]).toBe(false);
+  expect(stream.mock.calls.at(-1)?.[1]).toBe(false);
+});
+
 it.each([
   { description: 'successful empty', lines: [], error: undefined },
   { description: 'errored empty', lines: [], error: 'HTTP 503' },
-  { description: 'errored nonempty', lines: ['incomplete retained line'], error: 'HTTP 503' },
 ])(
   'falls back for $description retained responses and preserves usable pod logs',
   ({ lines, error }) => {
@@ -199,7 +225,6 @@ it.each([
     fireEvent.click(screen.getByText('View execution logs'));
     expect(stream.mock.calls.at(-1)?.[1]).toBe(true);
     expect(screen.getByText('usable pod line')).toBeTruthy();
-    expect(screen.queryByText('incomplete retained line')).toBeNull();
     expect(screen.queryByText('Retained execution history')).toBeNull();
     expect(screen.getByText('Some execution logs could not be loaded')).toBeTruthy();
     fireEvent.click(screen.getByText('Retry execution logs'));

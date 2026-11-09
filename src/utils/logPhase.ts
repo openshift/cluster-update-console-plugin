@@ -11,7 +11,8 @@ export const getLogCondition = (run: LightspeedAgenticRun, phase: LogPhase) =>
 
 export const isLogStreaming = (run: LightspeedAgenticRun, phase: LogPhase): boolean =>
   phase === 'analysis'
-    ? getLogCondition(run, phase)?.status === 'Unknown' && derivePhase(run) !== 'Denied'
+    ? getLogCondition(run, phase)?.status === 'Unknown' &&
+      !['Denied', 'EmergencyStopped'].includes(derivePhase(run))
     : derivePhase(run) === (phase === 'execution' ? 'Executing' : 'Verifying');
 
 export const hasStepLogs = (run: LightspeedAgenticRun, phase: LogPhase): boolean => {

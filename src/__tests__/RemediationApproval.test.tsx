@@ -1,6 +1,6 @@
 /** @jest-environment jsdom */
 import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
-import { k8sPatch, useAccessReview } from '@openshift-console/dynamic-plugin-sdk';
+import { checkAccess, k8sPatch } from '@openshift-console/dynamic-plugin-sdk';
 import { useAgenticRunApprovals } from '../hooks/useAgenticRuns';
 import { useApprovalActions } from '../hooks/useApprovalActions';
 import {
@@ -90,19 +90,43 @@ const view = (result = analysis) => (
   />
 );
 
+const waitForDecisions = () =>
+  waitFor(() =>
+    expect(
+      (screen.getByRole('button', { name: 'Reject plan' }) as HTMLButtonElement).disabled,
+    ).toBe(false),
+  );
+
+const renderReady = async () => {
+  const rendered = render(view());
+  await waitForDecisions();
+  return rendered;
+};
+
 beforeEach(() => {
   jest.clearAllMocks();
-  (useAccessReview as jest.Mock).mockReturnValue([true, false]);
+  (checkAccess as jest.Mock).mockResolvedValue({ status: { allowed: true } });
   (useAgenticRunApprovals as jest.Mock).mockReturnValue([[approval]]);
   (k8sPatch as jest.Mock).mockResolvedValue({});
 });
 
 it('approves the original option index and never patches ClusterVersion or overrides the agent', async () => {
-  render(view());
+  (checkAccess as jest.Mock).mockImplementation(async ({ name, namespace }) => ({
+    status: { allowed: name === 'update' && namespace === 'ns' },
+  }));
+  await renderReady();
+  expect(checkAccess).toHaveBeenCalledWith({
+    group: 'agentic.openshift.io',
+    resource: 'agenticrunapprovals',
+    verb: 'patch',
+    namespace: 'ns',
+    name: 'update',
+  });
   expect((screen.getByRole('button', { name: 'Approve plan' }) as HTMLButtonElement).disabled).toBe(
     true,
   );
   fireEvent.click(screen.getByRole('radio', { name: 'Select plan 2' }));
+  await waitForDecisions();
   fireEvent.click(screen.getByRole('button', { name: 'View details for Update operator first' }));
   fireEvent.click(screen.getByRole('button', { name: 'View command details' }));
   expect(
@@ -127,7 +151,7 @@ it('approves the original option index and never patches ClusterVersion or overr
 });
 
 it('denies the execution stage with the required execution arm', async () => {
-  render(view());
+  await renderReady();
   fireEvent.click(screen.getByRole('button', { name: 'Reject plan' }));
   fireEvent.click(screen.getByRole('button', { name: 'Confirm reject' }));
   await waitFor(() => expect(k8sPatch).toHaveBeenCalledTimes(1));
@@ -138,9 +162,10 @@ it('denies the execution stage with the required execution arm', async () => {
   });
 });
 
-it('invalidates confirmation and selection when analysis contents change', () => {
-  const { rerender } = render(view());
+it('invalidates confirmation and selection when analysis contents change', async () => {
+  const { rerender } = await renderReady();
   fireEvent.click(screen.getByRole('radio', { name: 'Select plan 2' }));
+  await waitForDecisions();
   fireEvent.click(screen.getByRole('button', { name: 'Approve plan' }));
   expect(screen.getByRole('dialog')).toBeTruthy();
   const updated = {
@@ -158,9 +183,10 @@ it('invalidates confirmation and selection when analysis contents change', () =>
   expect(k8sPatch).not.toHaveBeenCalled();
 });
 
-it('requires review of irreversibility in the approval confirmation', () => {
-  render(view());
+it('requires review of irreversibility in the approval confirmation', async () => {
+  await renderReady();
   fireEvent.click(screen.getByRole('radio', { name: 'Select plan 3' }));
+  await waitForDecisions();
   fireEvent.click(screen.getByRole('button', { name: 'Approve plan' }));
   expect(screen.getByText('This remediation is irreversible')).toBeTruthy();
   expect(k8sPatch).not.toHaveBeenCalled();
@@ -187,16 +213,100 @@ it('shows standalone diagnosis for no-action results without offering approval',
 });
 
 it('disables decisions without permission and prevents hook mutations', async () => {
-  (useAccessReview as jest.Mock).mockReturnValue([false, false]);
+  (checkAccess as jest.Mock).mockResolvedValue({ status: { allowed: false } });
   render(view());
+  await screen.findByText('You do not have permission to approve or reject this run.');
   expect((screen.getByRole('button', { name: 'Reject plan' }) as HTMLButtonElement).disabled).toBe(
     true,
   );
   const { result } = renderHook(() => useApprovalActions(approval));
+  await waitFor(() => expect(result.current.canApproveLoading).toBe(false));
   await act(async () => {
     expect(await result.current.approveStage('Execution', { optionIndex: 1 })).toBe(false);
   });
   expect(k8sPatch).not.toHaveBeenCalled();
+});
+
+it('checks permission for the newly selected approval', async () => {
+  (checkAccess as jest.Mock).mockImplementation(async ({ name, namespace }) => ({
+    status: { allowed: name === 'update' && namespace === 'ns' },
+  }));
+  const { result, rerender } = renderHook((selected) => useApprovalActions(selected), {
+    initialProps: approval,
+  });
+  await waitFor(() => expect(result.current.canApprove).toBe(true));
+
+  const selected = { ...approval, metadata: { name: 'another-update', namespace: 'another-ns' } };
+  rerender(selected);
+  expect(checkAccess).toHaveBeenLastCalledWith({
+    group: 'agentic.openshift.io',
+    resource: 'agenticrunapprovals',
+    verb: 'patch',
+    namespace: 'another-ns',
+    name: 'another-update',
+  });
+  expect(result.current.canApprove).toBe(false);
+  expect(result.current.canApproveLoading).toBe(true);
+  await act(async () => {
+    expect(await result.current.approveStage('Execution', { optionIndex: 1 })).toBe(false);
+  });
+  await waitFor(() => expect(result.current.canApproveLoading).toBe(false));
+  expect(result.current.canApprove).toBe(false);
+  expect(k8sPatch).not.toHaveBeenCalled();
+});
+
+it.each([true, false])(
+  'ignores stale reviews after the current review allows %s',
+  async (allowed) => {
+    let resolvePrevious!: (review: { status: { allowed: boolean } }) => void;
+    let resolveCurrent!: typeof resolvePrevious;
+    (checkAccess as jest.Mock)
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolvePrevious = resolve;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveCurrent = resolve;
+          }),
+      );
+    const { result, rerender } = renderHook((selected) => useApprovalActions(selected), {
+      initialProps: approval,
+    });
+    rerender({ ...approval, metadata: { ...approval.metadata, name: 'another-update' } });
+    expect(result.current.canApprove).toBe(false);
+    expect(result.current.canApproveLoading).toBe(true);
+
+    await act(async () => resolveCurrent({ status: { allowed } }));
+    expect(result.current.canApprove).toBe(allowed);
+    expect(result.current.canApproveLoading).toBe(false);
+    await act(async () => resolvePrevious({ status: { allowed: !allowed } }));
+    expect(result.current.canApprove).toBe(allowed);
+    expect(result.current.canApproveLoading).toBe(false);
+  },
+);
+
+it('waits for a named approval before requesting permission', async () => {
+  const { result, rerender } = renderHook((selected) => useApprovalActions(selected), {
+    initialProps: undefined as LightspeedAgenticRunApproval | undefined,
+  });
+  expect(checkAccess).not.toHaveBeenCalled();
+  expect(result.current.canApprove).toBe(false);
+  expect(result.current.canApproveLoading).toBe(true);
+  rerender(approval);
+  expect(result.current.canApproveLoading).toBe(true);
+  await waitFor(() => expect(result.current.canApprove).toBe(true));
+  expect(checkAccess).toHaveBeenCalledTimes(1);
+});
+
+it('preserves the SDK fallback when an access review request fails', async () => {
+  (checkAccess as jest.Mock).mockRejectedValue(new Error('Access review unavailable'));
+  const { result } = renderHook(() => useApprovalActions(approval));
+  await waitFor(() => expect(result.current.canApprove).toBe(true));
+  expect(result.current.canApproveLoading).toBe(false);
 });
 
 it('does not treat an existing denial as successful approval', async () => {
@@ -205,6 +315,7 @@ it('does not treat an existing denial as successful approval', async () => {
     spec: { stages: [{ type: 'Execution', decision: 'Denied', execution: {} }] },
   } as LightspeedAgenticRunApproval;
   const { result } = renderHook(() => useApprovalActions(denied));
+  await waitFor(() => expect(result.current.canApprove).toBe(true));
   await act(async () => {
     expect(await result.current.approveStage('Execution', { optionIndex: 1 })).toBe(false);
   });
@@ -213,8 +324,9 @@ it('does not treat an existing denial as successful approval', async () => {
 
 it('retains confirmation and reports errors when an approval patch fails', async () => {
   (k8sPatch as jest.Mock).mockRejectedValue(new Error('Resource changed; retry the decision'));
-  render(view());
+  await renderReady();
   fireEvent.click(screen.getByRole('radio', { name: 'Select plan 2' }));
+  await waitForDecisions();
   fireEvent.click(screen.getByRole('button', { name: 'Approve plan' }));
   fireEvent.click(screen.getByRole('button', { name: 'Confirm approval' }));
   expect(await screen.findByText('Resource changed; retry the decision')).toBeTruthy();

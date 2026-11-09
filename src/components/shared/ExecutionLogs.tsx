@@ -11,7 +11,7 @@ import {
 } from '@patternfly/react-core';
 import { LogViewer, LogViewerSearch } from '@patternfly/react-log-viewer';
 import { useTranslation } from 'react-i18next';
-import { LightspeedAgenticRun } from '../../models/agenticrun';
+import { derivePhase, LightspeedAgenticRun } from '../../models/agenticrun';
 import { useStepSandbox } from '../../hooks/useExecutionSandbox';
 import { useSandboxLogStream } from '../../hooks/useSandboxLogStream';
 import { useRetainedLogs } from '../../hooks/useRetainedLogs';
@@ -21,19 +21,24 @@ import { useLogIdentity } from '../../hooks/useLogIdentity';
 import './ExecutionLogs.css';
 
 type LogProps = { run: LightspeedAgenticRun; hideStageFailure?: boolean };
+type StepLogsProps = LogProps & { phase: LogPhase };
 
-const StepLogs = ({ run, phase, hideStageFailure }: LogProps & { phase: LogPhase }) => {
+const StepLogViewer = ({
+  run,
+  phase,
+  hideStageFailure,
+  expanded,
+  onToggle,
+}: StepLogsProps & { expanded: boolean; onToggle: (expanded: boolean) => void }) => {
   const { t } = useTranslation(I18N_NAMESPACE);
-  const [expanded, setExpanded] = useState(false);
   const [following, setFollowing] = useState(true);
   const viewer = useRef<{ scrollToItem?: (index: number) => void }>(null);
   const analysis = phase === 'analysis';
   const condition = getLogCondition(run, phase);
-  const waiting = analysis && !condition;
+  const waiting = analysis && !condition && derivePhase(run) !== 'EmergencyStopped';
   const streaming = isLogStreaming(run, phase);
   const retained = useRetainedLogs(run.metadata?.uid, expanded && !streaming && !waiting, phase);
-  const useCollector =
-    !streaming && !retained.error && retained.available && retained.lines.length > 0;
+  const useCollector = !streaming && retained.available && retained.lines.length > 0;
   const sandbox = useStepSandbox(run, expanded && !useCollector && !retained.loading, phase);
   const podLogs = useSandboxLogStream(
     sandbox.pod,
@@ -141,7 +146,7 @@ const StepLogs = ({ run, phase, hideStageFailure }: LogProps & { phase: LogPhase
       )}
       <ExpandableSection
         isExpanded={expanded}
-        onToggle={(_event, value) => setExpanded(value)}
+        onToggle={(_event, value) => onToggle(value)}
         toggleText={expanded ? text.hide : text.view}
       >
         <Content component="p" role="status" aria-live="polite">
@@ -227,21 +232,15 @@ const StepLogs = ({ run, phase, hideStageFailure }: LogProps & { phase: LogPhase
   );
 };
 
-export const ExecutionLogs = ({ run, hideStageFailure }: LogProps) => {
-  const { identity } = useLogIdentity(run, 'execution');
-  return (
-    <StepLogs key={identity} run={run} phase="execution" hideStageFailure={hideStageFailure} />
-  );
+const StepLogs = (props: StepLogsProps) => {
+  // Keep the user's toggle when sandbox discovery or a new attempt resets log state.
+  const [expanded, setExpanded] = useState(false);
+  const { identity } = useLogIdentity(props.run, props.phase);
+  return <StepLogViewer key={identity} {...props} expanded={expanded} onToggle={setExpanded} />;
 };
 
-export const AnalysisLogs = ({ run, hideStageFailure }: LogProps) => {
-  const { identity } = useLogIdentity(run, 'analysis');
-  return <StepLogs key={identity} run={run} phase="analysis" hideStageFailure={hideStageFailure} />;
-};
+export const ExecutionLogs = (props: LogProps) => <StepLogs {...props} phase="execution" />;
 
-export const VerificationLogs = ({ run, hideStageFailure }: LogProps) => {
-  const { identity } = useLogIdentity(run, 'verification');
-  return (
-    <StepLogs key={identity} run={run} phase="verification" hideStageFailure={hideStageFailure} />
-  );
-};
+export const AnalysisLogs = (props: LogProps) => <StepLogs {...props} phase="analysis" />;
+
+export const VerificationLogs = (props: LogProps) => <StepLogs {...props} phase="verification" />;

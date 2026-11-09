@@ -135,6 +135,7 @@ export const useK8sWatchResource = <T,>({
 };
 
 export const useAccessReview = (): [boolean, boolean] => [true, false];
+export const checkAccess = async () => ({ status: { allowed: true } });
 
 const models = Object.fromEntries(
   [

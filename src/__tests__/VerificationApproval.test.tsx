@@ -1,6 +1,6 @@
 /** @jest-environment jsdom */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { k8sPatch, useAccessReview } from '@openshift-console/dynamic-plugin-sdk';
+import { checkAccess, k8sPatch } from '@openshift-console/dynamic-plugin-sdk';
 import { useClusterVersion } from '../hooks/useClusterVersion';
 import { ClusterVersion } from '../models/clusterversion';
 import { VerificationApproval } from '../components/update-plan/VerificationApproval';
@@ -47,13 +47,14 @@ beforeEach(() => {
   jest.clearAllMocks();
   clusterVersion.mockReturnValue([completeVersion, true, undefined]);
   approvals.mockReturnValue([[approval], true, undefined]);
-  (useAccessReview as jest.Mock).mockReturnValue([true, false]);
+  (checkAccess as jest.Mock).mockResolvedValue({ status: { allowed: true } });
   (k8sPatch as jest.Mock).mockResolvedValue({});
 });
 
 it('approves only verification, preserves the configured agent, and prevents duplicate submissions', async () => {
   render(<VerificationApproval run={run} />);
-  const button = screen.getByRole('button', { name: 'Approve verification' });
+  const button = screen.getByRole('button', { name: 'Approve verification' }) as HTMLButtonElement;
+  await waitFor(() => expect(button.disabled).toBe(false));
   fireEvent.click(button);
   fireEvent.click(button);
   await waitFor(() => expect(k8sPatch).toHaveBeenCalledTimes(1));
@@ -86,8 +87,9 @@ it.each(['Approved', 'Denied', undefined] as const)(
 
 it.each(['permission', 'namespace', 'loading'] as const)(
   'blocks approval for %s problems',
-  (problem) => {
-    if (problem === 'permission') (useAccessReview as jest.Mock).mockReturnValue([false, false]);
+  async (problem) => {
+    if (problem === 'permission')
+      (checkAccess as jest.Mock).mockResolvedValue({ status: { allowed: false } });
     if (problem === 'namespace')
       approvals.mockReturnValue([
         [{ ...approval, metadata: { ...approval.metadata, namespace: 'other' } }],
@@ -95,6 +97,8 @@ it.each(['permission', 'namespace', 'loading'] as const)(
       ]);
     if (problem === 'loading') approvals.mockReturnValue([[], false]);
     render(<VerificationApproval run={run} />);
+    if (problem === 'permission')
+      await screen.findByText('You do not have permission to approve or reject this run.');
     const button = screen.getByRole('button', {
       name: 'Approve verification',
     }) as HTMLButtonElement;
@@ -109,7 +113,9 @@ it('shows an approval failure without starting verification locally', async () =
     new Error('The approval changed. Refresh and try again.'),
   );
   render(<VerificationApproval run={run} />);
-  fireEvent.click(screen.getByRole('button', { name: 'Approve verification' }));
+  const button = screen.getByRole('button', { name: 'Approve verification' }) as HTMLButtonElement;
+  await waitFor(() => expect(button.disabled).toBe(false));
+  fireEvent.click(button);
   await waitFor(() =>
     expect(screen.getByText('The approval changed. Refresh and try again.')).toBeTruthy(),
   );
@@ -135,7 +141,7 @@ it('blocks verification during a rollout and enables it automatically when the r
   expect(k8sPatch).not.toHaveBeenCalled();
   clusterVersion.mockReturnValue([completeVersion, true, undefined]);
   rerender(<VerificationApproval run={run} />);
-  expect(button.disabled).toBe(false);
+  await waitFor(() => expect(button.disabled).toBe(false));
   fireEvent.click(button);
   await waitFor(() => expect(k8sPatch).toHaveBeenCalledTimes(1));
 });

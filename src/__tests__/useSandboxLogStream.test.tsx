@@ -328,6 +328,62 @@ describe('useSandboxLogStream', () => {
     ]);
   });
 
+  it.each([
+    ['2026-10-27T12:30:00.100Z', '2026-10-27T12:30:00.200Z', '2026-10-27T12:30:00.300Z'],
+    [
+      '2026-10-27T12:30:00.123456788Z',
+      '2026-10-27T12:30:00.123456789Z',
+      '2026-10-27T12:30:00.123456790Z',
+    ],
+    [
+      '2026-10-27T14:29:59.999999999+02:00',
+      '2026-10-27T07:30:00.200-05:00',
+      '2026-10-27T12:30:00.300Z',
+    ],
+  ])(
+    'ignores older replay from %s without regressing the reconnect cursor',
+    async (older, stamp, newer) => {
+      const first = logStream();
+      const replay = logStream();
+      const resumed = logStream();
+      fetchLogs
+        .mockResolvedValueOnce(first.response)
+        .mockResolvedValueOnce(replay.response)
+        .mockResolvedValueOnce(resumed.response)
+        .mockResolvedValueOnce(logStream().response);
+      const { result } = renderHook(() => useSandboxLogStream(sandbox, true, true));
+      await flush();
+      const saved = [`${older} earlier`, `${stamp} repeat`, `${stamp} repeat`];
+      first.write(`${saved.join('\n')}\n`);
+      first.close();
+      await flush();
+      await advance(1000);
+      expect(requestedParameters(1).get('sinceTime')).toBe(stamp);
+
+      replay.write(`${older} earlier\n`);
+      replay.close();
+      await flush();
+      expect(result.current.lines).toEqual(saved);
+      await advance(2000);
+      expect(requestedParameters(2).get('sinceTime')).toBe(stamp);
+
+      resumed.write(
+        `${older} earlier\n${stamp} repeat\n${stamp} repeat\n${stamp} repeat\n${stamp} new\n${newer} latest\n${newer} latest\n`,
+      );
+      resumed.close();
+      await flush();
+      expect(result.current.lines).toEqual([
+        ...saved,
+        `${stamp} repeat`,
+        `${stamp} new`,
+        `${newer} latest`,
+        `${newer} latest`,
+      ]);
+      await advance(1000);
+      expect(requestedParameters(3).get('sinceTime')).toBe(newer);
+    },
+  );
+
   it('updates the resume boundary from a final unterminated line', async () => {
     fetchLogs.mockResolvedValueOnce(completedResponse(`${timestamp} final`));
     fetchLogs.mockResolvedValueOnce(logStream().response);

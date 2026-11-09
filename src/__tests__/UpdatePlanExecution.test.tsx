@@ -71,6 +71,30 @@ beforeEach(() => {
   ]);
 });
 
+it.each(['Analyzed', 'Executed', 'Verified', 'AwaitingVerification'])(
+  'shows an emergency stop during %s without loading or approval controls, and allows re-analysis',
+  (stage) => {
+    const stages = ['Analyzed', 'Executed', 'Verified'];
+    const conditions = stages
+      .slice(0, stage === 'AwaitingVerification' ? 2 : stages.indexOf(stage) + 1)
+      .map((type) => ({ type, status: type === stage ? 'Unknown' : 'True' }));
+    const run = fixture([
+      ...conditions,
+      { type: 'EmergencyStopped', status: 'True', message: 'Terminated by system kill switch' },
+    ]);
+    run.spec = { request: 'Update the cluster', analysis: {}, execution: {}, verification: {} };
+    show(run);
+    expect(screen.getByText('Agentic run stopped')).toBeTruthy();
+    expect(screen.getByText('Terminated by system kill switch')).toBeTruthy();
+    expect(screen.queryByRole('progressbar')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Approve plan' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Approve verification' })).toBeNull();
+    const analysis = screen.getByRole('button', { name: /Update analysis/ });
+    if (analysis.getAttribute('aria-expanded') !== 'true') fireEvent.click(analysis);
+    expect(screen.getByRole('button', { name: 'Re-analyse' })).toBeTruthy();
+  },
+);
+
 it('preserves analysis failureReason for analysis failure and does not invent execution', () => {
   show(fixture([{ type: 'Analyzed', status: 'False', message: 'analysis condition' }]));
   expect(screen.getByText('Analysis failed')).toBeTruthy();
@@ -401,6 +425,27 @@ it.each(['True', 'False'] as const)(
     expect(screen.queryByText('AI agent is verifying the cluster update...')).toBeNull();
   },
 );
+
+it('renders the empty state until update plans finish loading', () => {
+  const { rerender } = render(<UpdatePlanTab agenticRuns={[]} />);
+  expect(screen.getByText('No update plans available')).toBeTruthy();
+  rerender(<UpdatePlanTab agenticRuns={[fixture([])]} />);
+  expect(
+    (screen.getByRole('combobox', { name: 'Select agentic run' }) as HTMLSelectElement).value,
+  ).toBe('plan');
+});
+
+it('renders the empty state after deleting the last assessment and selects its replacement', () => {
+  const run = fixture([{ type: 'Analyzed', status: 'True' }]);
+  const { rerender } = show(run);
+  rerender(<UpdatePlanTab agenticRuns={[]} />);
+  expect(screen.getByText('No update plans available')).toBeTruthy();
+  rerender(<UpdatePlanTab agenticRuns={[{ ...run, metadata: { ...run.metadata, uid: 'new' } }]} />);
+  expect(screen.getByRole('button', { name: /Update analysis/ })).toBeTruthy();
+  expect(
+    (screen.getByRole('combobox', { name: 'Select agentic run' }) as HTMLSelectElement).value,
+  ).toBe('plan');
+});
 
 it('recovers the selected update path after its run is removed', () => {
   const first = fixture([{ type: 'Analyzed', status: 'True' }]);
