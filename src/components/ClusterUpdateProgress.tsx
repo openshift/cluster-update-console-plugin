@@ -125,6 +125,10 @@ export const ClusterUpdateProgress = ({ clusterVersion }: { clusterVersion: Clus
                             total: metric.total ?? '—',
                           })}
                         </Content>
+                      ) : metric.total === 0 ? (
+                        <Content component="p">
+                          {t('{{updated}} of {{total}} updated', { updated: 0, total: 0 })}
+                        </Content>
                       ) : metric.updated !== undefined && metric.total ? (
                         <Progress
                           title={metric.title}

@@ -91,13 +91,16 @@ For a standalone interactive preview using the real Cluster Update page and loca
 sample data, run `yarn preview` and open <http://127.0.0.1:9002>. The preview stage
 selector covers analysis, approval, execution, verification, completion, and failure states.
 Approving a sample plan simulates execution and streams sample logs. After execution, select **Ready for verification — rollout complete** to enable
-**Approve verification** and start the sample verification stage. Re-analysis,
+**Approve verification**, then confirm to start the sample verification stage. Re-analysis,
 approval, and rejection affect only the preview; the preview SDK makes no cluster
 requests. Use **Reset preview** to start again.
 
 The **Update verification** section displays the run's verification stage and logs.
-When manual approval is required, its **Approve verification** button approves the
-`Verification` stage on `AgenticRunApproval`. The Lightspeed operator launches the
+When manual approval is required, **Approve verification** and **Reject verification**
+ask for confirmation before recording the decision on the `Verification` stage of
+`AgenticRunApproval`. Approval is unavailable until cluster status confirms the
+update has finished. Rejection ends the run without undoing completed update actions.
+After approval, the Lightspeed operator launches the
 agent configured in `AgenticRun.spec.verification` in a dedicated sandbox pod;
 the console plugin displays its progress and does not execute verification commands.
 

@@ -35,6 +35,8 @@ const Preview = () => {
     ['SandboxTimeout', t('Sandbox deadline exceeded')],
     ['ExecutionFailed', t('Execution failed')],
     ['VerificationFailed', t('Verification failed')],
+    ['VerificationDenied', t('Verification denied — rollout complete')],
+    ['VerificationDeniedDuringRollout', t('Verification denied — rollout in progress')],
     ['Denied', t('Denied')],
     ['NoAction', t('No action required')],
   ];

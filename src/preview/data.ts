@@ -23,6 +23,8 @@ export type Scenario =
   | 'SandboxTimeout'
   | 'ExecutionFailed'
   | 'VerificationFailed'
+  | 'VerificationDenied'
+  | 'VerificationDeniedDuringRollout'
   | 'Denied'
   | 'NoAction';
 
@@ -151,8 +153,11 @@ const option: RemediationOption = {
 };
 
 export const resourcesFor = (inputScenario: Scenario, revision: number) => {
+  const verificationDenied = ['VerificationDenied', 'VerificationDeniedDuringRollout'].includes(
+    inputScenario,
+  );
   const scenario: Scenario =
-    inputScenario === 'ReadyForVerification'
+    inputScenario === 'ReadyForVerification' || verificationDenied
       ? 'AwaitingVerification'
       : inputScenario === 'ExecutionTimeout'
         ? 'ExecutionFailed'
@@ -310,7 +315,16 @@ export const resourcesFor = (inputScenario: Scenario, revision: number) => {
               ),
             ]
           : []),
-        ...(scenario === 'Denied' ? [condition('Denied', 'True')] : []),
+        ...(scenario === 'Denied' || verificationDenied
+          ? [
+              condition(
+                'Denied',
+                'True',
+                'UserDenied',
+                verificationDenied ? 'Verification denied by user' : 'Execution denied by user',
+              ),
+            ]
+          : []),
         ...(scenario === 'NoAction'
           ? [condition('Executed', 'True', 'Skipped'), condition('Verified', 'True', 'Skipped')]
           : []),
@@ -450,6 +464,9 @@ export const resourcesFor = (inputScenario: Scenario, revision: number) => {
           : []),
         ...(scenario === 'Denied'
           ? [{ type: 'Execution' as const, decision: 'Denied' as const, execution: {} }]
+          : []),
+        ...(verificationDenied
+          ? [{ type: 'Verification' as const, decision: 'Denied' as const, verification: {} }]
           : []),
       ],
     },

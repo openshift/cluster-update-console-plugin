@@ -20,7 +20,11 @@ export const useK8sWatchResource = <T,>({
   namespace?: string;
 }): [T, boolean, undefined] => {
   const { run, results, executionResults, approval, scenario } = usePreview();
-  const updating = ['Executing', 'AwaitingVerification'].includes(scenario);
+  const updating = [
+    'Executing',
+    'AwaitingVerification',
+    'VerificationDeniedDuringRollout',
+  ].includes(scenario);
   const target =
     updating ||
     [
@@ -29,6 +33,7 @@ export const useK8sWatchResource = <T,>({
       'Completed',
       'VerificationFailed',
       'VerificationTimeout',
+      'VerificationDenied',
     ].includes(scenario)
       ? '5.0.1'
       : '5.0.0-rc.6';
@@ -218,7 +223,14 @@ export const k8sPatch = async ({
         : value
   ) as Decision | undefined;
   if (!decision) throw new Error('A sample approval stage is required.');
-  if (decision.decision === 'Denied') setScenario('Denied');
+  if (decision.decision === 'Denied')
+    setScenario(
+      decision.type === 'Verification'
+        ? getPreview().scenario === 'AwaitingVerification'
+          ? 'VerificationDeniedDuringRollout'
+          : 'VerificationDenied'
+        : 'Denied',
+    );
   else
     startStage(
       decision.type === 'Analysis'

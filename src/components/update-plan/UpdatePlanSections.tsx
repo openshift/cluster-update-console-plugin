@@ -175,13 +175,9 @@ const UpdatePlanSections: React.FC<UpdatePlanSectionsProps> = ({
     verification: activeSection === 'verification',
   });
 
-  // Follow phase transitions, but preserve manual toggles during status refreshes.
+  // Open the active phase without changing the other sections' manual toggles.
   React.useEffect(() => {
-    setExpanded({
-      analysis: activeSection === 'analysis',
-      execution: activeSection === 'execution',
-      verification: activeSection === 'verification',
-    });
+    setExpanded((prev) => ({ ...prev, [activeSection]: true }));
   }, [activeSection]);
 
   const analysisPhase: AgenticRunPhase =

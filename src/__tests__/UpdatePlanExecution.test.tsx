@@ -206,7 +206,7 @@ it('shows actions from the latest referenced execution attempt before the execut
   expect((screen.getByRole('textbox', { name: 'Output' }) as HTMLInputElement).value).toBe('OK');
 });
 
-it('follows the active phase while preserving manual toggles across refreshes', () => {
+it('opens the active phase while preserving manual toggles across refreshes and transitions', () => {
   const analyzing = fixture([{ type: 'Analyzed', status: 'Unknown' }]);
   const { rerender } = show(analyzing);
   const analysisToggle = () => screen.getByRole('button', { name: /Update analysis/ });
@@ -236,7 +236,7 @@ it('follows the active phase while preserving manual toggles across refreshes', 
     { type: 'Verified', status: 'True' },
   ]);
   rerender(<UpdatePlanTab agenticRuns={[completed]} />);
-  expect(analysisToggle().getAttribute('aria-expanded')).toBe('false');
+  expect(analysisToggle().getAttribute('aria-expanded')).toBe('true');
   expect(executionToggle().getAttribute('aria-expanded')).toBe('false');
   expect(within(executionToggle()).getByRole('img', { name: 'Completed' })).toBeTruthy();
   expect(
