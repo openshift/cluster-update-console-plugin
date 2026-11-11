@@ -13,6 +13,7 @@
     "build": "yarn clean && NODE_ENV=production yarn webpack",
     "build-dev": "yarn clean && yarn webpack",
     "start": "yarn webpack serve --progress",
+    "preview": "yarn webpack serve --config webpack.preview.config.ts",
     "start-console": "./start-console.sh",
     "i18n": "./i18n-scripts/build-i18n.sh && node ./i18n-scripts/set-english-defaults.js",
     "test": "jest",
@@ -32,10 +33,15 @@
     "@openshift-console/dynamic-plugin-sdk-webpack": "4.22-latest",
     "@patternfly/react-core": "^6.4.3",
     "@patternfly/react-icons": "^6.4.0",
+    "@patternfly/react-log-viewer": "patch:@patternfly/react-log-viewer@npm%3A6.5.0#~/.yarn/patches/@patternfly-react-log-viewer-npm-6.5.0-40826af292.patch",
     "@patternfly/react-table": "^6.4.3",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.0",
+    "@types/dompurify": "^3.2.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.0.0",
     "@types/react": "^18.3.28",
+    "@types/react-dom": "^18.3.7",
     "babel-loader": "^10.1.0",
     "copy-webpack-plugin": "^14.0.0",
     "css-loader": "^7.1.4",
@@ -51,6 +57,7 @@
     "i18next": "^25.8.18",
     "i18next-parser": "^9.4.0",
     "jest": "^30.3.0",
+    "jest-environment-jsdom": "^30.3.0",
     "mocha": "^11.7.5",
     "mocha-junit-reporter": "^2.2.1",
     "mochawesome": "^7.1.4",
@@ -91,5 +98,9 @@
       "@console/pluginAPI": ">=4.22.0-0"
     }
   },
-  "packageManager": "yarn@4.14.1"
+  "packageManager": "yarn@4.14.1",
+  "dependencies": {
+    "dompurify": "^3.4.17",
+    "marked": "^18.1.2"
+  }
 }

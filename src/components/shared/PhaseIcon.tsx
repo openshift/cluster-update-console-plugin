@@ -75,6 +75,7 @@ const PhaseIcon: React.FC<PhaseIconProps> = ({ phase }) => {
       );
     case 'Failed':
     case 'Denied':
+    case 'EmergencyStopped':
       return (
         <Icon status="danger">
           <TimesCircleIcon />

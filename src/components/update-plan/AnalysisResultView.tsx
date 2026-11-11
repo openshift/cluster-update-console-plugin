@@ -1,7 +1,6 @@
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Alert,
   Card,
   CardBody,
   CardTitle,
@@ -22,15 +21,22 @@ import {
   AnalysisData,
   getReadinessSummary,
   getFindings,
-  sortFindings,
   getOlmOperatorStatus,
   getDecisionDisplay,
-  SEVERITY_LABELS,
+  hasDefaultModeData,
 } from '../../models/agenticrun';
 import { I18N_NAMESPACE } from '../../utils/constants';
+import { MarkdownContent } from '../shared/MarkdownContent';
+import { ReadinessChecklist } from './ReadinessChecklist';
+import { RemediationOptionCard } from './lightspeed/RemediationOptionCard';
 
 type AnalysisResultViewProps = {
   analysisData: AnalysisData;
+  analysisLogs?: React.ReactNode;
+  assessedAt?: string;
+  recheckAction?: React.ReactNode;
+  selectedOptionIndex?: number;
+  onSelectOption?: (index: number) => void;
 };
 
 const checkStatusIcon = (status: string) => {
@@ -75,189 +81,94 @@ const checkStatusColor = (status: string): 'green' | 'orange' | 'red' | 'blue' =
   }
 };
 
-const AnalysisResultView: React.FC<AnalysisResultViewProps> = ({ analysisData }) => {
+const AnalysisResultView: React.FC<AnalysisResultViewProps> = ({
+  analysisData,
+  analysisLogs,
+  assessedAt,
+  recheckAction,
+  selectedOptionIndex,
+  onSelectOption,
+}) => {
   const { t } = useTranslation(I18N_NAMESPACE);
+  const [expandedOptions, setExpandedOptions] = React.useState<Set<number>>(new Set([0]));
 
-  const { components, analysisData: legacyData } = analysisData;
+  const { options, components, diagnosis, analysisData: legacyData } = analysisData;
 
-  // Typed components (PR 1379 format)
+  // Extract all available data upfront
+  const hasRemediationMode = options.some(hasDefaultModeData);
   const readinessSummary = getReadinessSummary(components);
-  const findings = sortFindings(getFindings(components));
+  const findings = getFindings(components);
   const olmStatus = getOlmOperatorStatus(components);
 
-  // If we have typed components, use them
-  if (readinessSummary) {
+  // Determine decision for AI Assessment card
+  const decision = readinessSummary?.decision ?? (legacyData?.decision as string | undefined) ?? '';
+
+  // Legacy format checks
+  const legacySummary = (legacyData?.summary as string) ?? '';
+  const rawChecks = (legacyData?.check_results ??
+    legacyData?.check_by_check_analysis ??
+    {}) as Record<string, { status: string; reason?: string; findings?: string[] }>;
+
+  // Check if we have any data to display
+  const hasAnyData =
+    diagnosis ||
+    hasRemediationMode ||
+    readinessSummary ||
+    findings.length > 0 ||
+    (olmStatus && olmStatus.operators?.length > 0) ||
+    legacyData;
+
+  if (!hasAnyData) {
     return (
       <Stack hasGutter>
-        {/* Decision & Summary */}
         <StackItem>
-          <Card>
-            <CardTitle>
-              {t('AI Assessment')}
-              <Label
-                color={getDecisionDisplay(readinessSummary.decision).color}
-                isCompact
-                style={{ marginLeft: '12px' }}
-              >
-                {getDecisionDisplay(readinessSummary.decision).label}
-              </Label>
-            </CardTitle>
-          </Card>
+          <Content component="p">{t('Analysis data not available.')}</Content>
         </StackItem>
-
-        {/* Readiness Checks */}
-        {readinessSummary.checks?.length > 0 && (
-          <StackItem>
-            <Card>
-              <CardTitle>{t('Readiness Checks')}</CardTitle>
-              <CardBody>
-                <Table aria-label={t('Readiness checks')} variant="compact">
-                  <Thead>
-                    <Tr>
-                      <Th>{t('Check')}</Th>
-                      <Th>{t('Status')}</Th>
-                      <Th>{t('Details')}</Th>
-                    </Tr>
-                  </Thead>
-                  <Tbody>
-                    {readinessSummary.checks.map((check) => (
-                      <Tr key={check.name}>
-                        <Td dataLabel={t('Check')}>
-                          <strong>{check.name}</strong>
-                        </Td>
-                        <Td dataLabel={t('Status')}>
-                          {checkStatusIcon(check.status)}{' '}
-                          <Label color={checkStatusColor(check.status)} isCompact>
-                            {check.status}
-                          </Label>
-                        </Td>
-                        <Td dataLabel={t('Details')}>{check.detail ?? ''}</Td>
-                      </Tr>
-                    ))}
-                  </Tbody>
-                </Table>
-              </CardBody>
-            </Card>
-          </StackItem>
-        )}
-
-        {/* Findings */}
-        {findings.length > 0 && (
-          <StackItem>
-            {findings.map((f, i) => (
-              <Alert
-                key={`finding-${i}`}
-                variant={
-                  f.severity === 'blocker'
-                    ? 'danger'
-                    : f.severity === 'warning'
-                      ? 'warning'
-                      : 'info'
-                }
-                isInline
-                title={`${SEVERITY_LABELS[f.severity] ?? f.severity}: ${f.check}`}
-                style={{ marginBottom: '8px' }}
-              >
-                {f.detail}
-                {f.prerequisite && (
-                  <Content component="p" style={{ marginTop: '8px' }}>
-                    <strong>{t('Prerequisite:')}</strong> {f.prerequisite}
-                  </Content>
-                )}
-                {f.verifyCommand && (
-                  <Content component="small" style={{ display: 'block', marginTop: '4px' }}>
-                    <code>{f.verifyCommand}</code>
-                  </Content>
-                )}
-              </Alert>
-            ))}
-          </StackItem>
-        )}
-
-        {/* OLM Operators */}
-        {olmStatus && olmStatus.operators?.length > 0 && (
-          <StackItem>
-            <Card>
-              <CardTitle>{t('OLM Operators')}</CardTitle>
-              <CardBody>
-                <Table aria-label={t('OLM operators')} variant="compact">
-                  <Thead>
-                    <Tr>
-                      <Th>{t('Operator')}</Th>
-                      <Th>{t('Version')}</Th>
-                      <Th>{t('Channel')}</Th>
-                      <Th>{t('Compatible')}</Th>
-                      <Th>{t('Lifecycle')}</Th>
-                    </Tr>
-                  </Thead>
-                  <Tbody>
-                    {olmStatus.operators.map((op) => (
-                      <Tr key={`${op.namespace}/${op.name}`}>
-                        <Td dataLabel={t('Operator')}>
-                          <strong>{op.displayName ?? op.name}</strong>
-                        </Td>
-                        <Td dataLabel={t('Version')}>{op.installedVersion ?? '-'}</Td>
-                        <Td dataLabel={t('Channel')}>{op.channel ?? '-'}</Td>
-                        <Td dataLabel={t('Compatible')}>
-                          {op.compatibleWithTarget === true && (
-                            <Label color="green" isCompact>
-                              {t('Yes')}
-                            </Label>
-                          )}
-                          {op.compatibleWithTarget === false && (
-                            <Label color="red" isCompact>
-                              {t('No')}
-                            </Label>
-                          )}
-                          {op.compatibleWithTarget === undefined && '-'}
-                        </Td>
-                        <Td dataLabel={t('Lifecycle')}>{op.lifecycle?.supportPhase ?? '-'}</Td>
-                      </Tr>
-                    ))}
-                  </Tbody>
-                </Table>
-              </CardBody>
-            </Card>
-          </StackItem>
-        )}
+        {analysisLogs && <StackItem>{analysisLogs}</StackItem>}
       </Stack>
     );
   }
 
-  // Legacy flat format fallback
-  if (!legacyData) {
-    return <Content component="p">{t('Analysis data not available.')}</Content>;
-  }
-
-  const decision = (legacyData.decision as string) ?? '';
-  const summary = (legacyData.summary as string) ?? '';
-  const rawChecks = (legacyData.check_results ??
-    legacyData.check_by_check_analysis ??
-    {}) as Record<string, { status: string; reason?: string; findings?: string[] }>;
-
   return (
     <Stack hasGutter>
-      <StackItem>
-        <Card>
-          <CardTitle>
-            {t('AI Assessment')}
-            {decision && (
-              <Label
-                color={getDecisionDisplay(decision).color}
-                isCompact
-                style={{ marginLeft: '12px' }}
-              >
-                {getDecisionDisplay(decision).label}
-              </Label>
+      {/* AI Assessment - always show if we have a decision */}
+      {(readinessSummary || decision) && (
+        <StackItem>
+          <Card>
+            <CardTitle>
+              {t('AI Assessment')}
+              {decision && (
+                <Label
+                  color={getDecisionDisplay(decision).color}
+                  isCompact
+                  style={{ marginLeft: '12px' }}
+                >
+                  {getDecisionDisplay(decision).label}
+                </Label>
+              )}
+            </CardTitle>
+            {legacySummary && (
+              <CardBody>
+                <Content component="p">{legacySummary}</Content>
+              </CardBody>
             )}
-          </CardTitle>
-          <CardBody>
-            <Content component="p">{summary}</Content>
-          </CardBody>
-        </Card>
-      </StackItem>
+          </Card>
+        </StackItem>
+      )}
 
-      {Object.keys(rawChecks).length > 0 && (
+      {((readinessSummary?.checks?.length ?? 0) > 0 || findings.length > 0) && (
+        <StackItem>
+          <ReadinessChecklist
+            checks={readinessSummary?.checks ?? []}
+            findings={findings}
+            assessedAt={assessedAt}
+            recheckAction={recheckAction}
+          />
+        </StackItem>
+      )}
+
+      {/* Readiness Checks - from legacy format */}
+      {!readinessSummary && Object.keys(rawChecks).length > 0 && (
         <StackItem>
           <Card>
             <CardTitle>{t('Readiness Checks')}</CardTitle>
@@ -296,6 +207,103 @@ const AnalysisResultView: React.FC<AnalysisResultViewProps> = ({ analysisData })
           </Card>
         </StackItem>
       )}
+
+      {/* OLM Operators */}
+      {olmStatus && olmStatus.operators && olmStatus.operators.length > 0 && (
+        <StackItem>
+          <Card>
+            <CardTitle>{t('OLM Operators')}</CardTitle>
+            <CardBody>
+              <Table aria-label={t('OLM operators')} variant="compact">
+                <Thead>
+                  <Tr>
+                    <Th>{t('Operator')}</Th>
+                    <Th>{t('Version')}</Th>
+                    <Th>{t('Channel')}</Th>
+                    <Th>{t('Compatible')}</Th>
+                    <Th>{t('Lifecycle')}</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {olmStatus.operators.map((op) => (
+                    <Tr key={`${op.namespace}/${op.name}`}>
+                      <Td dataLabel={t('Operator')}>
+                        <strong>{op.displayName ?? op.name}</strong>
+                      </Td>
+                      <Td dataLabel={t('Version')}>{op.installedVersion ?? '-'}</Td>
+                      <Td dataLabel={t('Channel')}>{op.channel ?? '-'}</Td>
+                      <Td dataLabel={t('Compatible')}>
+                        {op.compatibleWithTarget === true && (
+                          <Label color="green" isCompact>
+                            {t('Yes')}
+                          </Label>
+                        )}
+                        {op.compatibleWithTarget === false && (
+                          <Label color="red" isCompact>
+                            {t('No')}
+                          </Label>
+                        )}
+                        {op.compatibleWithTarget === undefined && '-'}
+                      </Td>
+                      <Td dataLabel={t('Lifecycle')}>{op.lifecycle?.supportPhase ?? '-'}</Td>
+                    </Tr>
+                  ))}
+                </Tbody>
+              </Table>
+            </CardBody>
+          </Card>
+        </StackItem>
+      )}
+
+      {diagnosis && (
+        <StackItem>
+          <Card>
+            <CardTitle>{t('Root cause analysis')}</CardTitle>
+            <CardBody>
+              <MarkdownContent text={diagnosis.rootCause} />
+              <MarkdownContent text={diagnosis.summary} />
+            </CardBody>
+          </Card>
+        </StackItem>
+      )}
+
+      {analysisLogs && <StackItem>{analysisLogs}</StackItem>}
+
+      {/* Remediation Mode: Diagnosis and Remediation Plans */}
+      {hasRemediationMode &&
+        options.map((option, idx) => {
+          const isExpanded = expandedOptions.has(idx);
+          const togglePanel = () => {
+            setExpandedOptions((prev) => {
+              const next = new Set(prev);
+              if (next.has(idx)) {
+                next.delete(idx);
+              } else {
+                next.add(idx);
+              }
+              return next;
+            });
+          };
+
+          const hasContent = option.diagnosis || option.remediationPlan;
+          if (!hasContent) return null;
+
+          return (
+            <StackItem key={idx}>
+              <RemediationOptionCard
+                option={option}
+                index={idx}
+                isExpanded={isExpanded}
+                onToggleExpand={togglePanel}
+                isSelected={selectedOptionIndex === idx}
+                isRecommended={idx === 0 && !!onSelectOption && !!option.remediationPlan}
+                onSelect={
+                  onSelectOption && option.remediationPlan ? () => onSelectOption(idx) : undefined
+                }
+              />
+            </StackItem>
+          );
+        })}
     </Stack>
   );
 };

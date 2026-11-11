@@ -44,6 +44,17 @@ export const AnalysisResultModel: K8sModel = {
   labelPlural: 'AnalysisResults',
 };
 
+export const ExecutionResultModel: K8sModel = {
+  apiGroup: 'agentic.openshift.io',
+  apiVersion: 'v1alpha1',
+  kind: 'ExecutionResult',
+  plural: 'executionresults',
+  abbr: 'ER',
+  namespaced: true,
+  label: 'ExecutionResult',
+  labelPlural: 'ExecutionResults',
+};
+
 export const ApprovalPolicyModel: K8sModel = {
   apiGroup: 'agentic.openshift.io',
   apiVersion: 'v1alpha1',
@@ -58,6 +69,7 @@ export const ApprovalPolicyModel: K8sModel = {
 export const LightspeedAgenticRunGVK = getGroupVersionKindForModel(LightspeedAgenticRunModel);
 export const AgenticRunApprovalGVK = getGroupVersionKindForModel(AgenticRunApprovalModel);
 export const AnalysisResultGVK = getGroupVersionKindForModel(AnalysisResultModel);
+export const ExecutionResultGVK = getGroupVersionKindForModel(ExecutionResultModel);
 export const ApprovalPolicyGVK = getGroupVersionKindForModel(ApprovalPolicyModel);
 
 // --- Resource Types (composed from generated CRD types + K8sResourceCommon) ---
@@ -77,6 +89,22 @@ export type LightspeedAnalysisResult = K8sResourceCommon & {
   status?: AnalysisResultStatus;
 };
 
+export type ExecutionActionTaken = {
+  type: string;
+  description: string;
+  outcome: 'Succeeded' | 'Failed';
+  output?: string;
+  error?: string;
+};
+
+export type LightspeedExecutionResult = K8sResourceCommon & {
+  spec: { agenticRunName: string };
+  status?: {
+    actionsTaken?: ExecutionActionTaken[];
+    failureReason?: string;
+  };
+};
+
 export type LightspeedApprovalPolicy = K8sResourceCommon & {
   spec: ApprovalPolicySpec;
 };
@@ -91,6 +119,7 @@ export type AgenticRunPhase =
   | 'Proposed'
   | 'Approved'
   | 'Denied'
+  | 'EmergencyStopped'
   | 'Executing'
   | 'AwaitingSync'
   | 'Verifying'
@@ -111,6 +140,7 @@ export const ACTIVE_AGENTIC_RUN_PHASES = new Set<AgenticRunPhase>([
   'Escalating',
   'Escalated',
   'Failed',
+  'EmergencyStopped',
 ]);
 
 export const derivePhase = (agenticRun?: LightspeedAgenticRun): AgenticRunPhase => {
@@ -124,6 +154,7 @@ export const derivePhase = (agenticRun?: LightspeedAgenticRun): AgenticRunPhase 
   const analyzed = find('Analyzed');
 
   // Terminal states first
+  if (find('EmergencyStopped')?.status === 'True') return 'EmergencyStopped';
   if (escalated?.status === 'True') return 'Escalated';
   if (denied?.status === 'True') return 'Denied';
 
@@ -151,7 +182,8 @@ export const derivePhase = (agenticRun?: LightspeedAgenticRun): AgenticRunPhase 
   if (approved?.status === 'True') return 'Approved';
   if (approved?.status === 'False') return 'Denied';
 
-  if (analyzed?.status === 'True') return 'Proposed';
+  if (analyzed?.status === 'True')
+    return analyzed.reason === 'NoActionRequired' ? 'Analysed' : 'Proposed';
   if (analyzed?.status === 'Unknown') return 'Analyzing';
   if (analyzed?.status === 'False') return 'Failed';
 
@@ -205,10 +237,12 @@ export const getPhaseDisplay = (phase?: AgenticRunPhase | string): PhaseDisplay 
       return { color: 'green', label: 'Completed' };
     case 'Failed':
       return { color: 'red', label: 'Failed' };
+    case 'EmergencyStopped':
+      return { color: 'red', label: 'Emergency stopped' };
     case 'Denied':
       return { color: 'red', label: 'Denied' };
     case 'AwaitingSync':
-      return { color: 'teal', label: 'Awaiting Sync' };
+      return { color: 'teal', label: 'Awaiting verification' };
     case 'Escalating':
       return { color: 'orange', label: 'Escalating' };
     case 'Escalated':
@@ -250,7 +284,64 @@ export const getRiskColor = (risk?: string): 'green' | 'orange' | 'red' | 'grey'
   }
 };
 
-// --- Adapter components (from CVO outputSchema in AnalysisResult) ---
+// --- Remediation Options (Default mode analysis) ---
+// Re-export types from generated schema for consistency
+
+export type { DiagnosisResult, TokenUsage, ActionRequiredValue } from './generated/analysisresults';
+
+export type ProposedAction = {
+  command?: string;
+  type: string;
+  description: string;
+};
+
+export type RemediationPlan = {
+  description: string;
+  estimatedImpact?: string;
+  actions: ProposedAction[];
+  risk?: 'Low' | 'Medium' | 'High' | 'Critical';
+  reversible?: 'Reversible' | 'Irreversible' | 'Partial';
+  rollbackPlan?: {
+    description: string;
+    command?: string;
+  };
+};
+
+export type VerificationPlan = {
+  description: string;
+  steps?: Array<{
+    name: string;
+    type: string;
+    command?: string;
+    expected?: string;
+  }>;
+};
+
+export type RBACRule = {
+  namespace?: string;
+  apiGroups: string[];
+  resources: string[];
+  resourceNames?: string[];
+  verbs: string[];
+  justification: string;
+};
+
+export type RBACResult = {
+  namespaceScoped?: RBACRule[];
+  clusterScoped?: RBACRule[];
+};
+
+export type RemediationOption = {
+  title: string;
+  summary?: string;
+  components?: Record<string, unknown>;
+  diagnosis?: import('./generated/analysisresults').DiagnosisResult;
+  remediationPlan?: RemediationPlan;
+  verification?: VerificationPlan;
+  rbac?: RBACResult;
+};
+
+// --- Adapter components (Minimal mode - legacy typed components) ---
 
 export type AdapterComponent = {
   type: string;
@@ -261,20 +352,30 @@ export type AdapterComponent = {
 export type AnalysisDataPayload = Record<string, any>;
 
 export type AnalysisData = {
+  options: RemediationOption[];
   components: AdapterComponent[];
+  diagnosis?: import('./generated/analysisresults').DiagnosisResult;
   analysisData?: AnalysisDataPayload;
 };
 
 export const getAnalysisDataFromResult = (result?: LightspeedAnalysisResult): AnalysisData => {
   if (!result?.status?.options?.length) {
-    return { components: [] };
+    return {
+      options: [],
+      components: [],
+      ...(result?.status?.diagnosis && { diagnosis: result.status.diagnosis }),
+    };
   }
-  const option = result.status.options[0];
-  const comp = option.components;
 
+  const options = result.status.options as RemediationOption[];
+  const firstOption = result.status.options[0];
+  const comp = firstOption.components;
+
+  // For backward compatibility with Minimal mode, extract components from first option
   // components is an array of typed adapter components directly
   if (Array.isArray(comp)) {
     return {
+      options,
       components: comp as AdapterComponent[],
     };
   }
@@ -283,12 +384,14 @@ export const getAnalysisDataFromResult = (result?: LightspeedAnalysisResult): An
   const raw = (comp as AnalysisDataPayload)?.analysisData;
   if (Array.isArray(raw)) {
     return {
+      options,
       components: raw as AdapterComponent[],
     };
   }
 
   // Legacy flat object — wrap in components for backward compat
   return {
+    options,
     components: [],
     analysisData: raw as AnalysisDataPayload | undefined,
   };
@@ -418,3 +521,13 @@ export const sortFindings = (findings: OtaFinding[]): OtaFinding[] =>
   [...findings].sort(
     (a, b) => (SEVERITY_ORDER[a.severity] ?? 3) - (SEVERITY_ORDER[b.severity] ?? 3),
   );
+
+// --- Default Mode Helpers ---
+
+export const hasDefaultModeData = (option?: RemediationOption): boolean =>
+  !!option?.diagnosis || !!option?.remediationPlan;
+
+export const hasRemediationPlan = (result?: LightspeedAnalysisResult): boolean => {
+  if (!result?.status?.options?.length) return false;
+  return result.status.options.some((opt) => !!opt.remediationPlan);
+};

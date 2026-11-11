@@ -1,0 +1,360 @@
+/** @jest-environment jsdom */
+import * as React from 'react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { AnalysisLogs, ExecutionLogs, VerificationLogs } from '../components/shared/ExecutionLogs';
+import { useStepSandbox } from '../hooks/useExecutionSandbox';
+import { useRetainedLogs } from '../hooks/useRetainedLogs';
+import { useSandboxLogStream } from '../hooks/useSandboxLogStream';
+import { LightspeedAgenticRun } from '../models/agenticrun';
+import UpdatePlanSections from '../components/update-plan/UpdatePlanSections';
+
+jest.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (message: string, values?: Record<string, string>) =>
+      message.replace(/{{(\w+)}}/g, (_match, key) => values?.[key] ?? ''),
+  }),
+}));
+jest.mock('../components/update-plan/PlanHeader', () => ({ default: () => null }));
+jest.mock('../components/shared/MarkdownContent', () => ({
+  MarkdownContent: ({ text }: { text: string }) => <div>{text}</div>,
+}));
+jest.mock('../hooks/useExecutionSandbox');
+jest.mock('../hooks/useRetainedLogs');
+jest.mock('../hooks/useSandboxLogStream');
+jest.mock('@patternfly/react-log-viewer', () => ({
+  LogViewer: ({ data, toolbar }: { data: string; toolbar: React.ReactNode }) => (
+    <div>
+      <pre>{data}</pre>
+      {toolbar}
+    </div>
+  ),
+  LogViewerSearch: ({ 'aria-label': label }: { 'aria-label': string }) => (
+    <input aria-label={label} />
+  ),
+}));
+const sandbox = useStepSandbox as jest.Mock;
+const retained = useRetainedLogs as jest.Mock;
+const stream = useSandboxLogStream as jest.Mock;
+const makeRun = (status = 'Unknown', generation = 1) =>
+  ({
+    metadata: { uid: 'uid', namespace: 'ns', generation },
+    status: {
+      conditions: [{ type: 'Analyzed', status, lastTransitionTime: '2026-10-27T02:00:00Z' }],
+    },
+  }) as LightspeedAgenticRun;
+const open = () => fireEvent.click(screen.getByText('View analysis logs'));
+beforeEach(() => {
+  jest.clearAllMocks();
+  sandbox.mockReturnValue({
+    pod: { podName: 'analysis-pod', namespace: 'ns', sinceTime: 'start' },
+    loading: false,
+    retry: jest.fn(),
+  });
+  retained.mockReturnValue({ available: false, loading: false, lines: [], retry: jest.fn() });
+  stream.mockReturnValue({
+    lines: ['analysis output'],
+    loading: false,
+    state: 'streaming',
+    revision: 0,
+    retry: jest.fn(),
+  });
+});
+
+it('waits before analysis starts without prematurely querying history', () => {
+  const run = makeRun();
+  run.status = {};
+  sandbox.mockReturnValue({ loading: false, missing: true, retry: jest.fn() });
+  render(<AnalysisLogs run={run} />);
+  open();
+  expect(screen.getByText('Waiting for analysis sandbox')).toBeTruthy();
+  expect(retained.mock.calls.at(-1)?.slice(1)).toEqual([false, 'analysis']);
+});
+
+it('offers a separate analysis viewer and follows only while analysis is active', () => {
+  const view = render(<AnalysisLogs run={makeRun()} />);
+  expect(retained.mock.calls.at(-1)?.slice(1)).toEqual([false, 'analysis']);
+  open();
+  expect(sandbox.mock.calls.at(-1)?.slice(1)).toEqual([true, 'analysis']);
+  expect(stream.mock.calls.at(-1)?.slice(1)).toEqual([true, true, 'start']);
+  expect(screen.getByText('Streaming analysis logs')).toBeTruthy();
+  expect(screen.getByRole('textbox', { name: 'Search analysis logs' })).toBeTruthy();
+  view.rerender(<AnalysisLogs run={makeRun('True')} />);
+  expect(screen.getByText('Hide analysis logs')).toBeTruthy();
+  expect(retained.mock.calls.at(-1)?.slice(1)).toEqual([true, 'analysis']);
+  expect(stream.mock.calls.at(-1)?.[2]).toBe(false);
+});
+
+it('opens verification logs on demand, streams only verification, and stops when collapsed', () => {
+  const run = makeRun('True');
+  run.status!.conditions!.push(
+    {
+      type: 'Executed',
+      status: 'True',
+      reason: 'Succeeded',
+      message: '',
+      lastTransitionTime: '2026-10-29T12:00:00Z',
+    },
+    {
+      type: 'Verified',
+      status: 'Unknown',
+      reason: 'Running',
+      message: '',
+      lastTransitionTime: '2026-10-29T12:01:00Z',
+    },
+  );
+  stream.mockReturnValue({
+    lines: ['verification output'],
+    loading: false,
+    state: 'streaming',
+    retry: jest.fn(),
+  });
+  render(<VerificationLogs run={run} />);
+  expect(stream.mock.calls.at(-1)?.[1]).toBe(false);
+  expect(screen.queryByRole('textbox', { name: 'Search verification logs' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'View verification logs' }));
+  expect(sandbox.mock.calls.at(-1)?.slice(1)).toEqual([true, 'verification']);
+  expect(stream.mock.calls.at(-1)?.slice(1)).toEqual([true, true, 'start']);
+  expect(retained.mock.calls.at(-1)?.slice(1)).toEqual([false, 'verification']);
+  expect(screen.getByText('Streaming verification logs')).toBeTruthy();
+  expect(screen.getByText('verification output')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Hide verification logs' }));
+  expect(stream.mock.calls.at(-1)?.[1]).toBe(false);
+  expect(screen.queryByRole('textbox', { name: 'Search verification logs' })).toBeNull();
+});
+
+it.each(['True', 'False'] as const)(
+  'loads retained verification history after completion or failure (%s)',
+  (status) => {
+    const run = makeRun('True');
+    run.status!.conditions!.push(
+      {
+        type: 'Executed',
+        status: 'True',
+        reason: 'Succeeded',
+        message: '',
+        lastTransitionTime: '2026-10-29T12:00:00Z',
+      },
+      {
+        type: 'Verified',
+        status,
+        reason: 'Completed',
+        message: 'Verification detail',
+        lastTransitionTime: '2026-10-29T12:01:00Z',
+      },
+    );
+    retained.mockReturnValue({
+      available: true,
+      loading: false,
+      lines: ['retained verification'],
+      retry: jest.fn(),
+    });
+    sandbox.mockReturnValue({ loading: false, missing: true, retry: jest.fn() });
+    render(<VerificationLogs run={run} />);
+    fireEvent.click(screen.getByRole('button', { name: 'View verification logs' }));
+    expect(retained.mock.calls.at(-1)?.slice(1)).toEqual([true, 'verification']);
+    expect(screen.getByText('Retained verification history')).toBeTruthy();
+    expect(screen.getByText('retained verification')).toBeTruthy();
+    expect(screen.getByText('Verification logs loaded')).toBeTruthy();
+    if (status === 'False') expect(screen.getByText('Verification detail')).toBeTruthy();
+    expect(screen.queryByText('Execution failed')).toBeNull();
+  },
+);
+
+it('shows waiting, missing, connection errors and failed-analysis status distinctly', () => {
+  sandbox.mockReturnValue({ loading: false, missing: true, retry: jest.fn() });
+  stream.mockReturnValue({ lines: [], loading: false, state: 'idle', retry: jest.fn() });
+  const run = makeRun();
+  const view = render(<AnalysisLogs run={run} />);
+  open();
+  expect(screen.getByText('Waiting for analysis sandbox')).toBeTruthy();
+  view.rerender(<AnalysisLogs run={makeRun('False')} />);
+  expect(screen.getByText('Analysis pod is unavailable')).toBeTruthy();
+  expect(screen.getByText('Analysis failed')).toBeTruthy();
+  stream.mockReturnValue({
+    lines: [],
+    loading: false,
+    state: 'error',
+    error: 'HTTP 403',
+    retry: jest.fn(),
+  });
+  view.rerender(<AnalysisLogs run={makeRun('False')} />);
+  expect(screen.getByText('Some analysis logs could not be loaded')).toBeTruthy();
+  expect(screen.getByText('Retry analysis logs')).toBeTruthy();
+});
+
+it('separates simultaneous analysis snapshots and live execution output', () => {
+  sandbox.mockImplementation((_run, _active, phase) => ({
+    pod: { podName: phase, namespace: 'ns' },
+    loading: false,
+    retry: jest.fn(),
+  }));
+  stream.mockImplementation((pod) => ({
+    lines: [`${pod.podName} only`],
+    loading: false,
+    state: 'complete',
+    retry: jest.fn(),
+  }));
+  const run = makeRun('True');
+  run.status!.conditions!.push({
+    type: 'Executed',
+    status: 'Unknown',
+    lastTransitionTime: '2026-10-27T03:00:00Z',
+    message: '',
+    reason: 'InProgress',
+  });
+  render(
+    <>
+      <AnalysisLogs run={run} />
+      <ExecutionLogs run={run} />
+    </>,
+  );
+  open();
+  fireEvent.click(screen.getByText('View execution logs'));
+  const analysis = within(screen.getByRole('region', { name: 'Analysis' }));
+  const execution = within(screen.getByRole('region', { name: 'Execution' }));
+  expect(analysis.getByText('analysis only')).toBeTruthy();
+  expect(analysis.queryByText('execution only')).toBeNull();
+  expect(execution.getByText('execution only')).toBeTruthy();
+  const recent = stream.mock.calls.slice(-2);
+  expect(recent.find(([pod]) => pod.podName === 'execution')?.[2]).toBe(true);
+});
+
+it.each([
+  ['analysis', 'Analyzed', AnalysisLogs],
+  ['execution', 'Executed', ExecutionLogs],
+  ['verification', 'Verified', VerificationLogs],
+] as const)('preserves the %s log toggle as sandbox metadata arrives', (phase, condition, Logs) => {
+  const run = makeRun();
+  run.status!.conditions![0].type = condition;
+  sandbox.mockReturnValue({ loading: false, missing: true, retry: jest.fn() });
+  const { rerender } = render(<Logs run={run} />);
+  fireEvent.click(screen.getByRole('button', { name: `View ${phase} logs` }));
+  expect(screen.getByText(`Waiting for ${phase} sandbox`)).toBeTruthy();
+
+  const provisioned = {
+    ...run,
+    status: {
+      ...run.status,
+      steps: { [phase]: { sandbox: { claimName: 'claim', namespace: 'ns' } } },
+    },
+  };
+  sandbox.mockReturnValue({
+    pod: { podName: 'pod', namespace: 'ns', sinceTime: 'start' },
+    loading: false,
+    retry: jest.fn(),
+  });
+  rerender(<Logs run={provisioned} />);
+  expect(screen.getByRole('button', { name: `Hide ${phase} logs` })).toBeTruthy();
+  expect(stream.mock.calls.at(-1)?.slice(1)).toEqual([true, true, 'start']);
+
+  fireEvent.click(screen.getByRole('button', { name: `Hide ${phase} logs` }));
+  rerender(
+    <Logs
+      run={{
+        ...provisioned,
+        status: {
+          ...provisioned.status,
+          steps: {
+            [phase]: {
+              ...provisioned.status.steps[phase],
+              conditions: [
+                { type: 'Started', status: 'True', lastTransitionTime: '2026-10-27T02:01:00Z' },
+              ],
+            },
+          },
+        },
+      }}
+    />,
+  );
+  expect(screen.getByRole('button', { name: `View ${phase} logs` })).toBeTruthy();
+  expect(stream.mock.calls.at(-1)?.[1]).toBe(false);
+});
+
+it('resets log state for a new analysis attempt while preserving expansion', () => {
+  let output = 'original attempt';
+  stream.mockImplementation(() => {
+    const [lines] = React.useState(() => [output]);
+    return { lines, loading: false, state: 'streaming', retry: jest.fn() };
+  });
+  const view = render(<AnalysisLogs run={makeRun()} />);
+  open();
+  output = 'new generation';
+  view.rerender(<AnalysisLogs run={makeRun('True')} />);
+  expect(screen.getByText('Hide analysis logs')).toBeTruthy();
+  expect(screen.getByText('original attempt')).toBeTruthy();
+  view.rerender(<AnalysisLogs run={makeRun('Unknown', 2)} />);
+  expect(screen.getByText('Hide analysis logs')).toBeTruthy();
+  expect(screen.getByText('new generation')).toBeTruthy();
+  expect(screen.queryByText('original attempt')).toBeNull();
+  output = 'new start';
+  const retry = makeRun('Unknown', 2);
+  retry.status!.conditions![0].lastTransitionTime = '2026-10-27T03:00:00Z';
+  view.rerender(<AnalysisLogs run={retry} />);
+  expect(screen.getByText('Hide analysis logs')).toBeTruthy();
+  expect(screen.getByText('new start')).toBeTruthy();
+  expect(screen.queryByText('new generation')).toBeNull();
+  output = 'replacement sandbox';
+  const replacement = {
+    ...retry,
+    status: {
+      ...retry.status,
+      steps: { analysis: { sandbox: { claimName: 'replacement', namespace: 'ns' } } },
+    },
+  };
+  view.rerender(<AnalysisLogs run={replacement} />);
+  expect(screen.getByText('Hide analysis logs')).toBeTruthy();
+  expect(screen.getByText('replacement sandbox')).toBeTruthy();
+  expect(screen.queryByText('new start')).toBeNull();
+});
+
+it.each([
+  ['analysis', 'Analyzed', 'Analysis'],
+  ['execution', 'Executed', 'Execution'],
+  ['verification', 'Verified', 'Verification'],
+] as const)('shows the %s failure once in the complete phase section', (phase, type, label) => {
+  const run = makeRun('False');
+  run.status!.conditions![0].type = type;
+  run.status!.conditions![0].message = 'The agent could not complete the requested action.';
+  stream.mockReturnValue({
+    lines: ['saved output'],
+    loading: false,
+    state: 'error',
+    error: 'Connection lost',
+    retry: jest.fn(),
+  });
+  render(
+    <UpdatePlanSections
+      agenticRun={run}
+      analysisResults={[]}
+      submitted={false}
+      reanalyseButton={null}
+    />,
+  );
+  expect(screen.getAllByText(`${label} failed`)).toHaveLength(1);
+  expect(screen.getAllByText('The agent could not complete the requested action.')).toHaveLength(1);
+  fireEvent.click(screen.getByRole('button', { name: `View ${phase} logs` }));
+  expect(screen.getAllByText(`${label} failed`)).toHaveLength(1);
+  expect(screen.getAllByText('The agent could not complete the requested action.')).toHaveLength(1);
+  expect(screen.getByText(`Some ${phase} logs could not be loaded`)).toBeTruthy();
+  expect(screen.getByText('Connection lost')).toBeTruthy();
+  expect(screen.getByText('saved output')).toBeTruthy();
+});
+
+it('suppresses a handled stage failure while retaining log connection errors', () => {
+  const run = makeRun('False');
+  run.status!.conditions![0].message = 'Agent timed out';
+  stream.mockReturnValue({
+    lines: [],
+    loading: false,
+    state: 'error',
+    error: 'Connection lost',
+    revision: 0,
+    retry: jest.fn(),
+  });
+  const { rerender } = render(<AnalysisLogs run={run} hideStageFailure />);
+  expect(screen.queryByText('Analysis failed')).toBeNull();
+  open();
+  expect(screen.getByText('Analysis log connection failed')).toBeTruthy();
+  rerender(<AnalysisLogs run={run} />);
+  expect(screen.getByText('Analysis failed')).toBeTruthy();
+});

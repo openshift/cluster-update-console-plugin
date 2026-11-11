@@ -1,0 +1,52 @@
+diff --git a/dist/esm/LogViewer/LogViewer.js b/dist/esm/LogViewer/LogViewer.js
+index fffe7ecf2f561155f2d79eec5434c067c7f2dd73..f9f31c5539e58509fe29f368a455a5d70de2c7b8 100644
+--- a/dist/esm/LogViewer/LogViewer.js
++++ b/dist/esm/LogViewer/LogViewer.js
+@@ -151,7 +151,7 @@ const LogViewerBase = memo((_a) => {
+         }
+         const dummyText = document.createElement('span');
+         dummyText.className = css(styles.logViewerText);
+-        dummyText.innerHTML = rowText;
++        dummyText.textContent = rowText;
+         logViewerList.appendChild(dummyText);
+         const computedHeight = dummyText.clientHeight;
+         logViewerList.removeChild(dummyText);
+diff --git a/dist/esm/LogViewer/LogViewerRow.js b/dist/esm/LogViewer/LogViewerRow.js
+index 7232e3258c8d429813cfc529696db074fc4f1b76..5f2b07a5f18b5c7c9932ac5b41f0e92c41ff8bad 100644
+--- a/dist/esm/LogViewer/LogViewerRow.js
++++ b/dist/esm/LogViewer/LogViewerRow.js
+@@ -38,7 +38,7 @@ export const LogViewerRow = memo(({ index, style, data, ansiUp }) => {
+                     splitString.forEach((substr) => {
+                         if (substr.match(regEx)) {
+                             matchCounter += 1;
+-                            composedString.push(`<span class="${css(styles.logViewerString, handleHighlight(matchCounter))}">${substr}</span>`);
++                            composedString.push(`<span class="${css(styles.logViewerString, handleHighlight(matchCounter))}">${escapeTextForHtml(substr)}</span>`);
+                         }
+                         else {
+                             composedString.push(escapeTextForHtml(substr));
+diff --git a/dist/js/LogViewer/LogViewer.js b/dist/js/LogViewer/LogViewer.js
+index 5c4bfb3b9606dd338cecfc11368242e52684e67d..772b72243dd47ce7af0dc090b41edcf7a8823849 100644
+--- a/dist/js/LogViewer/LogViewer.js
++++ b/dist/js/LogViewer/LogViewer.js
+@@ -154,7 +154,7 @@ const LogViewerBase = (0, react_1.memo)((_a) => {
+         }
+         const dummyText = document.createElement('span');
+         dummyText.className = (0, react_styles_1.css)(log_viewer_1.default.logViewerText);
+-        dummyText.innerHTML = rowText;
++        dummyText.textContent = rowText;
+         logViewerList.appendChild(dummyText);
+         const computedHeight = dummyText.clientHeight;
+         logViewerList.removeChild(dummyText);
+diff --git a/dist/js/LogViewer/LogViewerRow.js b/dist/js/LogViewer/LogViewerRow.js
+index a3f2f2369f3b318c9401dc29f445a8ef2b6452a2..c9568979bf3798ac10dc18115651c256ef56b562 100644
+--- a/dist/js/LogViewer/LogViewerRow.js
++++ b/dist/js/LogViewer/LogViewerRow.js
+@@ -42,7 +42,7 @@ exports.LogViewerRow = (0, react_1.memo)(({ index, style, data, ansiUp }) => {
+                     splitString.forEach((substr) => {
+                         if (substr.match(regEx)) {
+                             matchCounter += 1;
+-                            composedString.push(`<span class="${(0, react_styles_1.css)(log_viewer_1.default.logViewerString, handleHighlight(matchCounter))}">${substr}</span>`);
++                            composedString.push(`<span class="${(0, react_styles_1.css)(log_viewer_1.default.logViewerString, handleHighlight(matchCounter))}">${(0, utils_1.escapeTextForHtml)(substr)}</span>`);
+                         }
+                         else {
+                             composedString.push((0, utils_1.escapeTextForHtml)(substr));

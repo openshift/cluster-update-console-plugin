@@ -9,32 +9,22 @@ import {
   Content,
   EmptyState,
   EmptyStateBody,
-  ExpandableSection,
   Flex,
   FlexItem,
   FormSelect,
   FormSelectOption,
-  Label,
   Modal,
   ModalBody,
   ModalFooter,
-  Spinner,
   Stack,
   StackItem,
 } from '@patternfly/react-core';
 import { CubesIcon, RedoIcon, SearchIcon } from '@patternfly/react-icons';
 import { k8sDelete } from '@openshift-console/dynamic-plugin-sdk';
-import { ClusterVersion } from '../../models/clusterversion';
-import { Link } from 'react-router';
 import {
   LightspeedAgenticRun,
   LightspeedAgenticRunModel,
-  LightspeedAnalysisResult,
-  ACTIVE_AGENTIC_RUN_PHASES,
   derivePhase,
-  getAnalysisDataFromResult,
-  getDecisionDisplay,
-  getFailedStage,
   getPhaseDisplay,
 } from '../../models/agenticrun';
 import { I18N_NAMESPACE, LABELS } from '../../utils/constants';
@@ -42,11 +32,8 @@ import { compareSemVer, unsanitizeVersion } from '../../utils/version';
 import { useApprovalActions } from '../../hooks/useApprovalActions';
 import { useAgenticRunApprovals, useAnalysisResults } from '../../hooks/useAgenticRuns';
 import PhaseLabel from '../shared/PhaseLabel';
-import PlanHeader from './PlanHeader';
-import AnalysisResultView from './AnalysisResultView';
 import ApprovalPolicyWarningBanner from './ApprovalPolicyWarningBanner';
-// TODO: Re-enable DecisionActions post-TP
-// import DecisionActions from './DecisionActions';
+import UpdatePlanSections from './UpdatePlanSections';
 
 type ReanalyseButtonProps = {
   agenticRun: LightspeedAgenticRun;
@@ -58,18 +45,36 @@ const ReanalyseButton: React.FC<ReanalyseButtonProps> = ({ agenticRun }) => {
   const [error, setError] = React.useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = React.useState(false);
 
+  const canReanalyse = [
+    'Proposed',
+    'Analysed',
+    'Failed',
+    'Denied',
+    'Completed',
+    'Escalated',
+    'EmergencyStopped',
+  ].includes(derivePhase(agenticRun));
+
   const openModal = React.useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     setIsModalOpen(true);
   }, []);
 
   const handleReanalyse = React.useCallback(async () => {
+    if (!canReanalyse) return;
     setLoading(true);
     setError(null);
     try {
       await k8sDelete({
         model: LightspeedAgenticRunModel,
         resource: agenticRun,
+        // Reject a deletion if the run changed after the user reviewed it.
+        json: {
+          preconditions: {
+            uid: agenticRun.metadata?.uid,
+            resourceVersion: agenticRun.metadata?.resourceVersion,
+          },
+        },
       });
       setIsModalOpen(false);
     } catch (err) {
@@ -77,7 +82,9 @@ const ReanalyseButton: React.FC<ReanalyseButtonProps> = ({ agenticRun }) => {
     } finally {
       setLoading(false);
     }
-  }, [agenticRun]);
+  }, [agenticRun, canReanalyse]);
+
+  if (!canReanalyse) return null;
 
   return (
     <>
@@ -113,7 +120,12 @@ const ReanalyseButton: React.FC<ReanalyseButtonProps> = ({ agenticRun }) => {
           )}
         </ModalBody>
         <ModalFooter>
-          <Button variant="primary" onClick={handleReanalyse} isDisabled={loading} isLoading={loading}>
+          <Button
+            variant="primary"
+            onClick={handleReanalyse}
+            isDisabled={loading}
+            isLoading={loading}
+          >
             {t('Confirm')}
           </Button>
           <Button variant="link" onClick={() => setIsModalOpen(false)} isDisabled={loading}>
@@ -137,18 +149,14 @@ const UpdatePlanLayout: React.FC<UpdatePlanLayoutProps> = ({ children }) => (
 );
 
 type UpdatePlanTabProps = {
-  clusterVersion: ClusterVersion;
   agenticRuns: LightspeedAgenticRun[];
 };
 
 const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ agenticRuns }) => {
   const { t } = useTranslation(I18N_NAMESPACE);
   const [selectedName, setSelectedName] = React.useState('');
-  const [expandedPanels, setExpandedPanels] = React.useState<Set<string>>(new Set());
-  const userCollapsedRef = React.useRef<Set<string>>(new Set());
   const [submittedNames, setSubmittedNames] = React.useState<Set<string>>(new Set());
   const [approvalsRaw] = useAgenticRunApprovals();
-  const approvals = approvalsRaw ?? [];
   const [analysisResultsRaw] = useAnalysisResults();
   const analysisResults = analysisResultsRaw ?? [];
 
@@ -159,27 +167,15 @@ const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ agenticRuns }) => {
 
   const selectedApproval = React.useMemo(
     () =>
-      approvals.find(
+      (approvalsRaw ?? []).find(
         (a) =>
           a.metadata?.name === selectedRun?.metadata?.name &&
           a.metadata?.namespace === selectedRun?.metadata?.namespace,
       ),
-    [approvals, selectedRun],
+    [approvalsRaw, selectedRun],
   );
 
   const selectedPhase = derivePhase(selectedRun);
-
-  // All runs that are active (analyzing, analyzed, or just submitted)
-  const activeRuns = React.useMemo(
-    () =>
-      agenticRuns.filter((p) => {
-        const phase = derivePhase(p);
-        if (ACTIVE_AGENTIC_RUN_PHASES.has(phase)) return true;
-        if (submittedNames.has(p.metadata?.name ?? '')) return true;
-        return false;
-      }),
-    [agenticRuns, submittedNames],
-  );
 
   // Clear submitted tracking once the real phase kicks in
   React.useEffect(() => {
@@ -192,21 +188,13 @@ const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ agenticRuns }) => {
     if (stillPending.size < submittedNames.size) setSubmittedNames(stillPending);
   }, [agenticRuns, submittedNames]);
 
-  // Auto-expand newly active runs unless the user manually collapsed them
-  React.useEffect(() => {
-    if (activeRuns.length > 0) {
-      setExpandedPanels((prev) => {
-        const next = new Set(prev);
-        activeRuns.forEach((p) => {
-          const name = p.metadata?.name;
-          if (name && !userCollapsedRef.current.has(name)) next.add(name);
-        });
-        return next;
-      });
-    }
-  }, [activeRuns]);
-
-  const { approveStage, error: approveError, inProgress } = useApprovalActions(selectedApproval);
+  const {
+    approveStage,
+    error: approveError,
+    inProgress,
+    canApprove,
+    canApproveLoading,
+  } = useApprovalActions(selectedApproval);
 
   const handleAnalyse = React.useCallback(async () => {
     if (!selectedRun?.metadata?.name) return;
@@ -214,30 +202,15 @@ const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ agenticRuns }) => {
     const ok = await approveStage('Analysis');
     if (ok) {
       setSubmittedNames((prev) => new Set(prev).add(name));
-      setExpandedPanels((prev) => new Set(prev).add(name));
     }
   }, [selectedRun, approveStage]);
 
-  // Auto-select first run if none selected
+  // Recover selection when an assessment is deleted or its update path disappears.
   React.useEffect(() => {
-    if (!selectedName && agenticRuns.length > 0) {
-      setSelectedName(agenticRuns[0].metadata?.name ?? '');
+    if (!agenticRuns.some((run) => run.metadata?.name === selectedName)) {
+      setSelectedName(agenticRuns[0]?.metadata?.name ?? '');
     }
   }, [selectedName, agenticRuns]);
-
-  const togglePanel = React.useCallback((name: string) => {
-    setExpandedPanels((prev) => {
-      const next = new Set(prev);
-      if (next.has(name)) {
-        next.delete(name);
-        userCollapsedRef.current.add(name);
-      } else {
-        next.add(name);
-        userCollapsedRef.current.delete(name);
-      }
-      return next;
-    });
-  }, []);
 
   if (agenticRuns.length === 0) {
     return (
@@ -308,7 +281,7 @@ const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ agenticRuns }) => {
                   <Button
                     variant="primary"
                     icon={<SearchIcon />}
-                    isDisabled={inProgress || !selectedApproval}
+                    isDisabled={inProgress || !selectedApproval || !canApprove || canApproveLoading}
                     isLoading={inProgress}
                     onClick={handleAnalyse}
                   >
@@ -332,135 +305,15 @@ const UpdatePlanTab: React.FC<UpdatePlanTabProps> = ({ agenticRuns }) => {
         </Card>
       </StackItem>
 
-      {/* Selected run's expandable panel */}
-      {activeRuns
-        .filter((r) => r.metadata?.name === selectedName)
-        .map((agenticRun) => {
-          const name = agenticRun.metadata?.name ?? '';
-          const rawTarget = agenticRun.metadata?.labels?.[LABELS.targetVersion] ?? '';
-          const target = rawTarget ? unsanitizeVersion(rawTarget) : name;
-          const pPhase = derivePhase(agenticRun);
-          const phaseDisplay = getPhaseDisplay(pPhase);
-          const failedStage = pPhase === 'Failed' ? getFailedStage(agenticRun) : undefined;
-
-          const stepResults = agenticRun.status?.steps?.analysis?.results;
-          const resultRef = (stepResults?.[stepResults.length - 1] as { name?: string })?.name;
-          const result = resultRef
-            ? analysisResults.find(
-                (r: LightspeedAnalysisResult) =>
-                  r.metadata?.name === resultRef &&
-                  r.metadata?.namespace === agenticRun.metadata?.namespace,
-              )
-            : undefined;
-          const resultData = getAnalysisDataFromResult(result);
-          const readinessSummary = resultData.components.find(
-            (c) => c.type === 'ota_readiness_summary',
-          );
-          const decision =
-            ((readinessSummary as Record<string, unknown>)?.decision as string | undefined) ??
-            (resultData.analysisData?.decision as string | undefined);
-          const decisionDisplay = decision ? getDecisionDisplay(decision) : undefined;
-
-          return (
-            <StackItem key={name}>
-              <ExpandableSection
-                toggleContent={
-                  <Flex alignItems={{ default: 'alignItemsCenter' }} gap={{ default: 'gapSm' }}>
-                    <FlexItem>
-                      <strong>{t('Update to {{version}}', { version: target })}</strong>
-                    </FlexItem>
-                    <FlexItem>
-                      <Label color={phaseDisplay.color} isCompact>
-                        {phaseDisplay.label}
-                      </Label>
-                    </FlexItem>
-                    {decisionDisplay && pPhase !== 'Analyzing' && (
-                      <FlexItem>
-                        <Label color={decisionDisplay.color} isCompact>
-                          {decisionDisplay.label}
-                        </Label>
-                      </FlexItem>
-                    )}
-                    <FlexItem>
-                      <ReanalyseButton agenticRun={agenticRun} />
-                    </FlexItem>
-                  </Flex>
-                }
-                isExpanded={expandedPanels.has(name)}
-                onToggle={() => togglePanel(name)}
-                isIndented
-              >
-                <Stack hasGutter>
-                  <StackItem>
-                    <PlanHeader agenticRun={agenticRun} />
-                  </StackItem>
-                  {pPhase === 'Analyzing' || (pPhase === 'Pending' && submittedNames.has(name)) ? (
-                    <StackItem>
-                      <Card>
-                        <CardBody>
-                          <Flex
-                            alignItems={{ default: 'alignItemsCenter' }}
-                            gap={{ default: 'gapMd' }}
-                          >
-                            <FlexItem>
-                              <Spinner size="lg" aria-label={t('Analyzing')} />
-                            </FlexItem>
-                            <FlexItem>
-                              <Stack>
-                                <StackItem>
-                                  <strong>
-                                    {agenticRun.status?.steps?.analysis?.sandbox?.claimName
-                                      ? t('AI agent is analysing cluster readiness...')
-                                      : t('Starting analysis — waiting for agent sandbox...')}
-                                  </strong>
-                                </StackItem>
-                                {agenticRun.status?.steps?.analysis?.sandbox?.claimName && (
-                                  <StackItem>
-                                    <Content component="small">
-                                      {t('Sandbox: {{name}}', {
-                                        name: agenticRun.status.steps.analysis.sandbox.claimName,
-                                      })}
-                                      {' — '}
-                                      <Link
-                                        to={`/k8s/ns/${agenticRun.status.steps.analysis.sandbox.namespace ?? 'openshift-lightspeed'}/pods/${agenticRun.status.steps.analysis.sandbox.claimName}/logs`}
-                                      >
-                                        {t('View pod logs')}
-                                      </Link>
-                                    </Content>
-                                  </StackItem>
-                                )}
-                              </Stack>
-                            </FlexItem>
-                          </Flex>
-                        </CardBody>
-                      </Card>
-                    </StackItem>
-                  ) : pPhase === 'Failed' ? (
-                    <StackItem>
-                      <Alert
-                        variant="danger"
-                        isInline
-                        title={t('{{stage}} failed', { stage: failedStage?.label ?? 'Unknown' })}
-                      >
-                        {result?.status?.failureReason ??
-                          failedStage?.message ??
-                          t('Unknown error')}
-                      </Alert>
-                    </StackItem>
-                  ) : (
-                    <StackItem>
-                      {resultData.components.length > 0 || resultData.analysisData ? (
-                        <AnalysisResultView analysisData={resultData} />
-                      ) : (
-                        <Content component="p">{t('Analysis result not yet available.')}</Content>
-                      )}
-                    </StackItem>
-                  )}
-                </Stack>
-              </ExpandableSection>
-            </StackItem>
-          );
-        })}
+      {selectedRun && (
+        <UpdatePlanSections
+          key={selectedRun.metadata?.uid ?? selectedName}
+          agenticRun={selectedRun}
+          analysisResults={analysisResults}
+          submitted={submittedNames.has(selectedName)}
+          reanalyseButton={<ReanalyseButton agenticRun={selectedRun} />}
+        />
+      )}
     </UpdatePlanLayout>
   );
 };

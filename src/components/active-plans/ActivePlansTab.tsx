@@ -1,12 +1,11 @@
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router';
-import { Timestamp } from '@openshift-console/dynamic-plugin-sdk';
 import { EmptyState, EmptyStateBody } from '@patternfly/react-core';
 import { SearchIcon } from '@patternfly/react-icons';
 import { Table, Thead, Tbody, Tr, Th, Td } from '@patternfly/react-table';
 import { LightspeedAgenticRun, derivePhase } from '../../models/agenticrun';
 import { I18N_NAMESPACE, LABELS } from '../../utils/constants';
+import { formatDistanceToNow } from '../../utils/time';
 import PhaseLabel from '../shared/PhaseLabel';
 import './active-plans.css';
 
@@ -44,21 +43,16 @@ const ActivePlansTab: React.FC<ActivePlansTabProps> = ({ activePlans }) => {
 
             return (
               <Tr key={agenticRun.metadata?.uid ?? agenticRun.metadata?.name}>
-                <Td dataLabel={t('Name')}>
-                  <Link
-                    to={`/lightspeed/runs/${agenticRun.metadata?.namespace}/${agenticRun.metadata?.name}`}
-                    className="cluster-update-plugin__check-link"
-                  >
-                    {agenticRun.metadata?.name}
-                  </Link>
-                </Td>
+                <Td dataLabel={t('Name')}>{agenticRun.metadata?.name ?? '-'}</Td>
                 <Td dataLabel={t('Target Version')}>{targetVersion}</Td>
                 <Td dataLabel={t('Phase')}>
                   <PhaseLabel phase={derivePhase(agenticRun)} />
                 </Td>
                 <Td dataLabel={t('Update Type')}>{updateType}</Td>
                 <Td dataLabel={t('Age')}>
-                  <Timestamp timestamp={agenticRun.metadata?.creationTimestamp} simple />
+                  {agenticRun.metadata?.creationTimestamp
+                    ? formatDistanceToNow(agenticRun.metadata.creationTimestamp)
+                    : '-'}
                 </Td>
               </Tr>
             );

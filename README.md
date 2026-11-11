@@ -1,13 +1,60 @@
 # Cluster Update Console Plugin
 
-An OpenShift Console dynamic plugin that provides an AI-driven cluster update experience. It integrates with [OpenShift Lightspeed](https://github.com/openshift/lightspeed-operator) proposals (via the `agentic.openshift.io` API) to assess upgrade readiness, show OLM operator compatibility, and let users approve or reject AI-generated update plans.
+An OpenShift Console dynamic plugin for reviewing and approving AI-generated cluster
+update plans through the `agentic.openshift.io` API.
 
 ## Features
 
-- **Update Plan** — Shows the active AI-generated update proposal with risk assessment, readiness checks, OLM operator compatibility, API deprecation checks, and approve/deny actions.
-- **Active Update Plans** — Lists all non-terminal Lightspeed proposals.
-- **Update History** — Shows the ClusterVersion update history.
-- **Graceful Degradation** — Works without the Lightspeed Proposal CRD installed. The Update History tab is always functional; AI features show a warning banner when unavailable.
+- **Updates plan** — Separate, collapsible analysis, execution, and verification
+  sections with scoped permissions, copyable commands, explicit plan selection,
+  approval/rejection, actions taken, and stage-specific logs.
+- **Active update plans** — Lists non-terminal AgenticRuns.
+- **Live cluster update progress** — Watches ClusterVersion, ClusterOperators,
+  MachineConfigPools, and rendered MachineConfigs. Reports operator and node
+  rollout counts independently of the agent's lifecycle. Routine node configuration
+  rollouts are distinguished from version updates.
+- **Upgrade readiness checklist** — Displays structured `ota_readiness_summary`
+  and `ota_finding` components from AnalysisResult. Shows blockers and required
+  actions first; passed checks are collapsed. This is an assessment snapshot,
+  refreshed by re-analysis, not a live readiness probe.
+- **Timeout guidance** — Explains stage timeouts and links to the effective Agent
+  CR, honoring approval overrides. Startup failures have separate guidance.
+- **Graceful degradation** — Native rollout status remains available without the
+  AgenticRun API. Missing permissions or resources are reported in the relevant view.
+
+## Stage logs and approvals
+
+Each stage follows only its own pod while running. After the stage finishes, its
+viewer prefers retained history when the `lightspeed-agentic-configuration`
+ConfigMap in `openshift-lightspeed` provides an `otel-admin-endpoint`; otherwise it
+falls back to the stage's pod. Retained logs are scoped to AgenticRun UID and phase
+and may include multiple attempts. Viewers never combine phases.
+
+Pod discovery follows sandbox owner UIDs. Log requests use the step's start boundary;
+analysis also uses its active condition transition to exclude earlier attempts.
+Changes to the run, attempt, or sandbox reset the viewer; completion preserves output.
+Viewing requires access to pods and pod logs, plus SandboxClaims/Sandboxes for
+claim-managed pods, or the configuration ConfigMap and collector proxy for retention.
+If the pod has expired and retention is unavailable, the plugin cannot recover logs.
+
+Both sources retain at most 20,000 lines, 4,194,304 text characters, and 65,536
+characters per line. The viewer discloses truncation. These are saved-text limits;
+the browser still materializes retained JSON responses before validation.
+
+The PatternFly log viewer is pinned with a Yarn patch in `.yarn/patches/` so wrapped
+line measurement treats log content as text and search matches remain escaped.
+Keep the patch until the upstream dependency includes both fixes. Regression tests
+exercise the real viewer with literal markup in pod and retained logs.
+
+Approvals patch AgenticRunApproval; the console does not execute displayed commands
+or request the platform update directly. Verification approval stays disabled while
+ClusterVersion reports an unfinished rollout or completion cannot be confirmed. This
+is a console-side guard; automatic approvals and other API clients are governed by
+the operator's policies. Changing an Agent timeout affects other runs using that Agent.
+
+Re-analyse deletes the current assessment after confirmation. It is unavailable
+while agent stages are running. Execution may have partially completed after a
+failure; review actions taken and cluster state before beginning another attempt.
 
 ## Prerequisites
 
@@ -39,6 +86,23 @@ Navigate to <http://localhost:9000/administration/cluster-update>.
 The plugin dev server runs on port 9001 with CORS enabled. The console bridge runs on port 9000.
 
 ### Testing with mock data
+
+For a standalone interactive preview using the real Cluster Update page and local
+sample data, run `yarn preview` and open <http://127.0.0.1:9002>. The preview stage
+selector covers analysis, approval, execution, verification, completion, and failure states.
+Approving a sample plan simulates execution and streams sample logs. After execution, select **Ready for verification — rollout complete** to enable
+**Approve verification**, then confirm to start the sample verification stage. Re-analysis,
+approval, and rejection affect only the preview; the preview SDK makes no cluster
+requests. Use **Reset preview** to start again.
+
+The **Update verification** section displays the run's verification stage and logs.
+When manual approval is required, **Approve verification** and **Reject verification**
+ask for confirmation before recording the decision on the `Verification` stage of
+`AgenticRunApproval`. Approval is unavailable until cluster status confirms the
+update has finished. Rejection ends the run without undoing completed update actions.
+After approval, the Lightspeed operator launches the
+agent configured in `AgenticRun.spec.verification` in a dedicated sandbox pod;
+the console plugin displays its progress and does not execute verification commands.
 
 Without the Lightspeed agentic operator installed, Proposals have no analysis data. To test with mock data:
 

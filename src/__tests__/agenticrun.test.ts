@@ -8,6 +8,8 @@ import {
   sortFindings,
   derivePhase,
   getFailedStage,
+  hasDefaultModeData,
+  hasRemediationPlan,
   COMPONENT_TYPES,
   AdapterComponent,
   LightspeedAgenticRun,
@@ -15,7 +17,31 @@ import {
   OtaReadinessSummary,
   OtaFinding,
   OtaOlmOperatorStatus,
+  RemediationOption,
 } from '../models/agenticrun';
+import { isLogStreaming, LogPhase } from '../utils/logPhase';
+import { TERMINAL_PHASES } from '../utils/constants';
+
+it.each([
+  ['analysis', 'Analyzed'],
+  ['execution', 'Executed'],
+  ['verification', 'Verified'],
+] as const)('treats emergency-stopped %s as terminal and stops log streaming', (phase, type) => {
+  const run = {
+    status: {
+      conditions: [
+        { type, status: 'Unknown' },
+        { type: 'EmergencyStopped', status: 'True', reason: 'SystemSuspended' },
+      ],
+    },
+  } as LightspeedAgenticRun;
+  expect(derivePhase(run)).toBe('EmergencyStopped');
+  expect(TERMINAL_PHASES.has(derivePhase(run))).toBe(true);
+  expect(getPhaseDisplay(derivePhase(run))).toEqual({ color: 'red', label: 'Emergency stopped' });
+  for (const stage of ['analysis', 'execution', 'verification'] as LogPhase[]) {
+    expect(isLogStreaming(run, stage)).toBe(false);
+  }
+});
 
 describe('getPhaseDisplay', () => {
   it('maps known phases to expected colors', () => {
@@ -28,7 +54,10 @@ describe('getPhaseDisplay', () => {
     expect(getPhaseDisplay('Completed')).toEqual({ color: 'green', label: 'Completed' });
     expect(getPhaseDisplay('Failed')).toEqual({ color: 'red', label: 'Failed' });
     expect(getPhaseDisplay('Denied')).toEqual({ color: 'red', label: 'Denied' });
-    expect(getPhaseDisplay('AwaitingSync')).toEqual({ color: 'teal', label: 'Awaiting Sync' });
+    expect(getPhaseDisplay('AwaitingSync')).toEqual({
+      color: 'teal',
+      label: 'Awaiting verification',
+    });
     expect(getPhaseDisplay('Escalating')).toEqual({ color: 'orange', label: 'Escalating' });
     expect(getPhaseDisplay('Escalated')).toEqual({ color: 'orangered', label: 'Escalated' });
   });
@@ -392,5 +421,116 @@ describe('sortFindings', () => {
 
   it('returns empty array for empty input', () => {
     expect(sortFindings([])).toEqual([]);
+  });
+});
+
+describe('Default Mode Helpers', () => {
+  describe('hasDefaultModeData', () => {
+    it('returns true when option has diagnosis', () => {
+      const option: RemediationOption = {
+        title: 'Fix memory issue',
+        diagnosis: {
+          confidence: 'High',
+          rootCause: 'OOMKilled pod',
+          summary: 'Pod is running out of memory',
+        },
+      };
+      expect(hasDefaultModeData(option)).toBe(true);
+    });
+
+    it('returns true when option has remediationPlan', () => {
+      const option: RemediationOption = {
+        title: 'Fix memory issue',
+        remediationPlan: {
+          actions: [{ type: 'patch', description: 'Increase memory limit' }],
+          description: 'Increase memory',
+          risk: 'Low',
+        },
+      };
+      expect(hasDefaultModeData(option)).toBe(true);
+    });
+
+    it('returns true when option has both diagnosis and remediationPlan', () => {
+      const option: RemediationOption = {
+        title: 'Fix memory issue',
+        diagnosis: {
+          confidence: 'High',
+          rootCause: 'OOMKilled pod',
+          summary: 'Pod is running out of memory',
+        },
+        remediationPlan: {
+          actions: [{ type: 'patch', description: 'Increase memory limit' }],
+          description: 'Increase memory',
+          risk: 'Low',
+        },
+      };
+      expect(hasDefaultModeData(option)).toBe(true);
+    });
+
+    it('returns false when option has only components (Minimal mode)', () => {
+      const option: RemediationOption = {
+        title: 'Analysis',
+        components: {
+          analysisData: [{ type: 'ota_readiness_summary', decision: 'recommend', checks: [] }],
+        },
+      };
+      expect(hasDefaultModeData(option)).toBe(false);
+    });
+
+    it('returns false for undefined option', () => {
+      expect(hasDefaultModeData(undefined)).toBe(false);
+    });
+  });
+
+  describe('hasRemediationPlan', () => {
+    it('returns true when result has options with remediationPlan', () => {
+      const result: LightspeedAnalysisResult = {
+        spec: { agenticRunName: 'test' },
+        status: {
+          options: [
+            {
+              title: 'Fix issue',
+              remediationPlan: {
+                actions: [{ type: 'patch', description: 'Fix it' }],
+                description: 'Fix',
+                risk: 'Low',
+              },
+            },
+          ],
+        },
+      } as unknown as LightspeedAnalysisResult;
+      expect(hasRemediationPlan(result)).toBe(true);
+    });
+
+    it('returns false when result has options without remediationPlan', () => {
+      const result: LightspeedAnalysisResult = {
+        spec: { agenticRunName: 'test' },
+        status: {
+          options: [
+            {
+              title: 'Analysis only',
+              diagnosis: {
+                confidence: 'High',
+                rootCause: 'Issue',
+                summary: 'No fix available',
+              },
+            },
+          ],
+        },
+      } as unknown as LightspeedAnalysisResult;
+      expect(hasRemediationPlan(result)).toBe(false);
+    });
+
+    it('returns false when result has no options', () => {
+      const result: LightspeedAnalysisResult = {
+        spec: { agenticRunName: 'test' },
+        status: {},
+      } as LightspeedAnalysisResult;
+      expect(hasRemediationPlan(result)).toBe(false);
+    });
+
+    it('returns false for undefined result', () => {
+      expect(hasRemediationPlan(undefined)).toBe(false);
+    });
   });
 });

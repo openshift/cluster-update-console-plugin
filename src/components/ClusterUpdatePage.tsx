@@ -20,10 +20,11 @@ import { useClusterVersion } from '../hooks/useClusterVersion';
 import { useAgenticRuns } from '../hooks/useAgenticRuns';
 import { I18N_NAMESPACE, LABELS, TERMINAL_PHASES } from '../utils/constants';
 import { LightspeedAgenticRun, derivePhase } from '../models/agenticrun';
-import { ClusterVersion } from '../models/clusterversion';
 import UpdatePlanTab from './update-plan/UpdatePlanTab';
 import ActivePlansTab from './active-plans/ActivePlansTab';
 import './ClusterUpdatePage.css';
+import { ClusterUpdateProgress } from './ClusterUpdateProgress';
+import './update-plan/update-plan.css';
 
 export default function ClusterUpdatePage() {
   const { t } = useTranslation(I18N_NAMESPACE);
@@ -83,6 +84,11 @@ export default function ClusterUpdatePage() {
           </Alert>
         </PageSection>
       )}
+      {cvLoaded && !cvError && clusterVersion && (
+        <PageSection hasBodyWrapper={false}>
+          <ClusterUpdateProgress clusterVersion={clusterVersion} />
+        </PageSection>
+      )}
       {loading ? (
         <PageSection hasBodyWrapper={false}>
           <Spinner aria-label={t('Loading')} />
@@ -97,10 +103,7 @@ export default function ClusterUpdatePage() {
             <Tab eventKey={0} title={<TabTitleText>{t('Updates plan')}</TabTitleText>}>
               <TabContent id="updates-plan-tab">
                 <TabContentBody>
-                  <UpdatePlanTab
-                    clusterVersion={clusterVersion as ClusterVersion}
-                    agenticRuns={agenticRuns}
-                  />
+                  <UpdatePlanTab agenticRuns={agenticRuns} />
                 </TabContentBody>
               </TabContent>
             </Tab>
