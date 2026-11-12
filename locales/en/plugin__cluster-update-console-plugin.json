@@ -102,7 +102,6 @@
   "Failed to resolve execution sandbox: {{detail}}": "Failed to resolve execution sandbox: {{detail}}",
   "Failed to resolve verification sandbox: {{detail}}": "Failed to resolve verification sandbox: {{detail}}",
   "For upgrade workflows, it is strongly recommended to set ApprovalPolicy to Manual for both Analysis and Execution stages to ensure all upgrade actions require explicit administrator approval.": "For upgrade workflows, it is strongly recommended to set ApprovalPolicy to Manual for both Analysis and Execution stages to ensure all upgrade actions require explicit administrator approval.",
-  "Generated": "Generated",
   "Hide action details": "Hide action details",
   "Hide analysis logs": "Hide analysis logs",
   "Hide command details": "Hide command details",

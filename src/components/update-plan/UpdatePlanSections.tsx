@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { Timestamp } from '@openshift-console/dynamic-plugin-sdk';
 import { useTranslation } from 'react-i18next';
 import {
   Alert,
@@ -6,6 +7,7 @@ import {
   CardBody,
   Content,
   ExpandableSection,
+  ExpandableSectionToggle,
   Flex,
   FlexItem,
   Icon,
@@ -42,6 +44,7 @@ type UpdatePhaseSectionProps = {
   title: string;
   phase: AgenticRunPhase;
   skipped?: boolean;
+  timestamp?: string;
   isExpanded: boolean;
   onToggle: (expanded: boolean) => void;
   children: React.ReactNode;
@@ -51,35 +54,56 @@ const UpdatePhaseSection: React.FC<UpdatePhaseSectionProps> = ({
   title,
   phase,
   skipped,
+  timestamp,
   isExpanded,
   onToggle,
   children,
 }) => {
   const { t } = useTranslation(I18N_NAMESPACE);
   const status = skipped ? t('Skipped') : getPhaseDisplay(phase).label;
+  const id = React.useId();
+  const toggleId = `${id}-toggle`;
+  const contentId = `${id}-content`;
 
   return (
     <Card>
       <CardBody>
+        <Flex alignItems={{ default: 'alignItemsCenter' }} flexWrap={{ default: 'nowrap' }}>
+          <FlexItem grow={{ default: 'grow' }}>
+            <ExpandableSectionToggle
+              toggleWrapper="h2"
+              toggleId={toggleId}
+              contentId={contentId}
+              isExpanded={isExpanded}
+              isDetached
+              onToggle={onToggle}
+            >
+              <span className="cluster-update-plugin__phase-heading">
+                <span role="img" aria-label={status}>
+                  {skipped ? (
+                    <Icon>
+                      <BanIcon />
+                    </Icon>
+                  ) : (
+                    <PhaseIcon phase={phase} />
+                  )}
+                </span>
+                {title}
+              </span>
+            </ExpandableSectionToggle>
+          </FlexItem>
+          {timestamp && (
+            <FlexItem className="cluster-update-plugin__phase-timestamp">
+              <Timestamp timestamp={timestamp} />
+            </FlexItem>
+          )}
+        </Flex>
         <ExpandableSection
           className="cluster-update-plugin__phase-section"
-          toggleWrapper="h2"
-          toggleContent={
-            <span className="cluster-update-plugin__phase-heading">
-              <span role="img" aria-label={status}>
-                {skipped ? (
-                  <Icon>
-                    <BanIcon />
-                  </Icon>
-                ) : (
-                  <PhaseIcon phase={phase} />
-                )}
-              </span>
-              {title}
-            </span>
-          }
+          isDetached
+          toggleId={toggleId}
+          contentId={contentId}
           isExpanded={isExpanded}
-          onToggle={(_event, expanded) => onToggle(expanded)}
         >
           {children}
         </ExpandableSection>
@@ -267,6 +291,7 @@ const UpdatePlanSections: React.FC<UpdatePlanSectionsProps> = ({
       <StackItem>
         <UpdatePhaseSection
           title={t('Update analysis')}
+          timestamp={agenticRun.metadata?.creationTimestamp}
           phase={analysisPhase}
           skipped={analysisCondition?.reason === 'Skipped'}
           isExpanded={expanded.analysis}

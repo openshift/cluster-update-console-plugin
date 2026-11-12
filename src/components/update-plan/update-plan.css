@@ -49,13 +49,14 @@
 
 /* PlanHeader */
 .cluster-update-plugin__plan-header {
+  padding-block-start: var(--pf-t--global--spacer--md);
   margin-block-end: var(--pf-t--global--spacer--lg);
 }
 
-.cluster-update-plugin__plan-header-meta {
+.cluster-update-plugin__phase-timestamp {
   color: var(--pf-t--global--text--color--subtle);
   font-size: var(--pf-t--global--font--size--sm);
-  margin-block-end: var(--pf-t--global--spacer--xs);
+  white-space: nowrap;
 }
 
 .cluster-update-plugin__plan-header-versions {
