@@ -291,7 +291,7 @@ const UpdatePlanSections: React.FC<UpdatePlanSectionsProps> = ({
       <StackItem>
         <UpdatePhaseSection
           title={t('Update analysis')}
-          timestamp={agenticRun.metadata?.creationTimestamp}
+          timestamp={analysisCondition?.lastTransitionTime}
           phase={analysisPhase}
           skipped={analysisCondition?.reason === 'Skipped'}
           isExpanded={expanded.analysis}
@@ -393,6 +393,7 @@ const UpdatePlanSections: React.FC<UpdatePlanSectionsProps> = ({
       <StackItem>
         <UpdatePhaseSection
           title={t('Update execution')}
+          timestamp={executionCondition?.lastTransitionTime}
           phase={executionPhase}
           skipped={executionSkipped || noActionRequired}
           isExpanded={expanded.execution}
@@ -473,6 +474,7 @@ const UpdatePlanSections: React.FC<UpdatePlanSectionsProps> = ({
       <StackItem>
         <UpdatePhaseSection
           title={t('Update verification')}
+          timestamp={verificationCondition?.lastTransitionTime}
           phase={verificationPhase}
           skipped={verificationSkipped || !verificationConfigured || noActionRequired}
           isExpanded={expanded.verification}

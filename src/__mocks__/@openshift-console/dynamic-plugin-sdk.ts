@@ -1,3 +1,5 @@
+import { createElement } from 'react';
+
 export const getGroupVersionKindForModel = (model: {
   apiGroup?: string;
   apiVersion: string;
@@ -18,6 +20,8 @@ export const consoleFetch = jest.fn();
 export const useK8sWatchResource = jest.fn();
 export const useAccessReview = jest.fn(() => [true, false]);
 export const checkAccess = jest.fn().mockResolvedValue({ status: { allowed: true } });
+export const Timestamp = ({ timestamp }: { timestamp?: string }) =>
+  timestamp ? createElement('time', { dateTime: timestamp }, timestamp) : null;
 
 export type K8sModel = {
   apiGroup?: string;
