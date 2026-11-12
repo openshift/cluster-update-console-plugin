@@ -54,6 +54,7 @@
   "Cluster ApprovalPolicy not set to Manual for all stages": "Cluster ApprovalPolicy not set to Manual for all stages",
   "Cluster operators": "Cluster operators",
   "Cluster Update": "Cluster Update",
+  "Cluster update in progress": "Cluster update in progress",
   "Cluster-wide": "Cluster-wide",
   "Command": "Command",
   "Compatible": "Compatible",
