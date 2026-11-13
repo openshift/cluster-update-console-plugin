@@ -178,9 +178,7 @@ it('blocks verification during a rollout and enables it automatically when the r
   const button = screen.getByRole('button', { name: 'Approve verification' }) as HTMLButtonElement;
   expect(button.disabled).toBe(true);
   expect(screen.getByText(/The cluster update is still in progress/)).toBeTruthy();
-  expect(
-    screen.getByRole('link', { name: 'View live cluster update progress' }).getAttribute('href'),
-  ).toBe('#live-cluster-update-progress');
+  expect(screen.queryByRole('link', { name: 'View live cluster update progress' })).toBeNull();
   fireEvent.click(button);
   expect(k8sPatch).not.toHaveBeenCalled();
   clusterVersion.mockReturnValue([completeVersion, true, undefined]);
