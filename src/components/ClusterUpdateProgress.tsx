@@ -8,6 +8,7 @@ import {
   FlexItem,
   Label,
   Progress,
+  Spinner,
   Stack,
   StackItem,
 } from '@patternfly/react-core';
@@ -64,7 +65,16 @@ export const ClusterUpdateProgress = ({ clusterVersion }: { clusterVersion: Clus
   return (
     <Card id="live-cluster-update-progress">
       <CardTitle>
-        <Flex>
+        <Flex alignItems={{ default: 'alignItemsCenter' }} gap={{ default: 'gapSm' }}>
+          {progress.state === 'updating' && (
+            <FlexItem>
+              <Spinner
+                isInline
+                aria-label={t('Cluster update in progress')}
+                aria-valuetext={t('Updating')}
+              />
+            </FlexItem>
+          )}
           <FlexItem grow={{ default: 'grow' }}>{t('Live cluster update progress')}</FlexItem>
           <FlexItem>
             <Label

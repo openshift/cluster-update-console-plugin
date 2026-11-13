@@ -73,7 +73,8 @@ it.each([3, 0])('updates live progress with %i worker nodes', (workerCount) => {
     return [resources[groupVersionKind.kind as keyof typeof resources], true, undefined];
   });
   const { rerender } = render(<ClusterUpdateProgress clusterVersion={cv} />);
-  expect(screen.getAllByRole('progressbar')).toHaveLength(workerCount === 0 ? 2 : 3);
+  expect(screen.getByRole('progressbar', { name: 'Cluster update in progress' })).toBeTruthy();
+  expect(screen.getAllByRole('progressbar')).toHaveLength(workerCount === 0 ? 3 : 4);
   expect(screen.getAllByText('1 of 3 updated')).toHaveLength(workerCount === 0 ? 1 : 2);
   expect(screen.queryAllByText('0 of 0 updated')).toHaveLength(workerCount === 0 ? 1 : 0);
   expect(screen.queryByText('Waiting for target configuration')).toBeNull();

@@ -1,6 +1,5 @@
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Timestamp } from '@openshift-console/dynamic-plugin-sdk';
 import { Flex, FlexItem, Label } from '@patternfly/react-core';
 import { ArrowRightIcon } from '@patternfly/react-icons';
 import { LightspeedAgenticRun } from '../../models/agenticrun';
@@ -21,13 +20,8 @@ const PlanHeader: React.FC<PlanHeaderProps> = ({ agenticRun }) => {
   const targetVersion = rawTarget ? unsanitizeVersion(rawTarget) : t('unknown');
   const updateType = labels[LABELS.updateType] ?? getUpdateType(currentVersion, targetVersion);
 
-  const creationTimestamp = agenticRun.metadata?.creationTimestamp;
-
   return (
     <div className="cluster-update-plugin__plan-header">
-      <div className="cluster-update-plugin__plan-header-meta">
-        {t('Generated')} <Timestamp timestamp={creationTimestamp} />
-      </div>
       <Flex alignItems={{ default: 'alignItemsCenter' }}>
         <FlexItem>
           <span className="cluster-update-plugin__plan-header-versions">
