@@ -164,6 +164,41 @@ integration-tests/                 # Cypress e2e tests
 - SDK is mocked via `src/__mocks__/@openshift-console/dynamic-plugin-sdk.ts`
 - Jest config uses `ts-jest` preset with module name mapping for the SDK mock
 
+### E2E Test Frameworks
+This repo runs **both Cypress and Playwright** for E2E testing:
+
+**Cypress** (`integration-tests/`)
+- Existing test suite (currently `example-page.cy.ts`)
+- **Required** in CI (blocking)
+- Run with `yarn test-cypress` (interactive) or `yarn test-cypress-headless` (CI)
+- CI script: `test-prow-e2e.sh`
+
+**Playwright** (`playwright-tests/`)
+- New test framework, runs alongside Cypress
+- **Optional** in CI (non-blocking) initially
+- Run with `yarn test-playwright` (UI mode) or `yarn test-playwright-headless` (CI)
+- CI script: `test-prow-playwright-e2e.sh`
+- Serial execution (`workers: 1`) due to shared cluster state
+- Tests in `playwright-tests/tests/*.spec.ts`
+- Support files in `playwright-tests/support/`
+
+**Playwright Conventions** (aligned with lightspeed-agentic-console):
+- **Global setup/teardown**: Authenticate once in `global-setup.ts`, reuse `storageState` across tests
+- **Custom test fixture**: Import `test` and `expect` from `../support/fixtures` (NOT `@playwright/test`)
+  - `dismissGuidedTour` - Auto-dismisses OpenShift guided tour modals
+  - `captureConsoleLogs` - Captures console errors/warnings, prints on test failure
+- **Environment variables**:
+  - `BASE_URL` - Console URL (aligned with lightspeed-agentic-console)
+  - `LOGIN_PASSWORD` - Admin password (required)
+  - `LOGIN_USERNAME` - Admin username (default: `kubeadmin`)
+  - `LOGIN_IDP` - Identity provider (default: `kube:admin`)
+  - `KUBECONFIG_PATH` - Path to kubeconfig for artifact collection
+  - `SKIP_PLUGIN_SETUP` - Skip global setup if auth state exists
+- **Artifact collection**: `gatherClusterArtifacts()` in teardown collects pod logs and resource YAMLs
+- **oc helper**: `oc(args)` wrapper for cluster operations with KUBECONFIG_PATH
+
+**Migration strategy**: Write new E2E tests in Playwright only. Keep Cypress as the CI gate until Playwright reaches equivalent coverage, then flip Playwright to required.
+
 ## Build & Deployment
 
 ### Building Image
