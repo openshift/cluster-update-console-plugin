@@ -70,12 +70,6 @@ export const VerificationApproval: FC<{ run: LightspeedAgenticRun }> = ({ run })
                 : t(
                     'Execution completed. Approve verification to let the agent check the update outcome.',
                   )}
-            {rolloutBlocked && (
-              <>
-                {' '}
-                <a href="#live-cluster-update-progress">{t('View live cluster update progress')}</a>
-              </>
-            )}
           </Content>
         </StackItem>
         {loadError && (

@@ -239,7 +239,15 @@ export const resourcesFor = (inputScenario: Scenario, revision: number) => {
     status: 'True' | 'False' | 'Unknown',
     reason = 'Succeeded',
     message = '',
-  ) => ({ type, status, reason, message, lastTransitionTime: createdAt });
+  ) => ({
+    type,
+    status,
+    reason,
+    message,
+    lastTransitionTime: new Date(
+      Date.parse(createdAt) + (type === 'Executed' ? 7 : type === 'Verified' ? 11 : 0) * 60 * 1000,
+    ).toISOString(),
+  });
   const run: LightspeedAgenticRun = {
     apiVersion: 'agentic.openshift.io/v1alpha1',
     kind: 'AgenticRun',
